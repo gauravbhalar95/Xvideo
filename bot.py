@@ -4,8 +4,12 @@ from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import asyncio
-import time
+import logging
 from telegram.error import RetryAfter
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Your Telegram bot token
 TOKEN = os.environ.get('TOKEN')
@@ -76,23 +80,25 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_m
 # Webhook endpoint
 @app.route('/webhook', methods=['POST'])
 async def webhook():
+    logger.info("Received a webhook request")
     update = Update.de_json(request.get_json(force=True), bot)
     await application.process_update(update)
     return '', 200
 
 # Set up webhook asynchronously
-
-
 async def setup_webhook():
     webhook_url = f'https://gorgeous-eloisa-telegramboth-0c5537ec.koyeb.app/webhook'
     while True:
         try:
             await bot.set_webhook(webhook_url)
-            print("Webhook set successfully!")
+            logger.info("Webhook set successfully!")
             break
         except RetryAfter as e:
-            print(f"Flood control. Retry in {e.retry_after} seconds...")
-            time.sleep(e.retry_after)
+            logger.warning(f"Flood control. Retry in {e.retry_after} seconds...")
+            await asyncio.sleep(e.retry_after)  # Use asyncio.sleep for async code
+        except Exception as e:
+            logger.error(f"Error setting webhook: {e}")
+            break
 
 if __name__ == '__main__':
     # Run webhook setup
