@@ -83,7 +83,7 @@ async def webhook():
 
 if __name__ == '__main__':
     # Set up the webhook URL
-    webhook_url = f'https://<YOUR_DOMAIN>/webhook'  # Replace <YOUR_DOMAIN> with your actual domain
+    webhook_url = f'https://gorgeous-eloisa-telegramboth-0c5537ec.koyeb.app/webhook'  # Replace <YOUR_DOMAIN> with your actual domain
     bot.setWebhook(webhook_url)
 
     # Run the Flask app
