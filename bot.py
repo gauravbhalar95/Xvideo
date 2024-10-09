@@ -99,4 +99,4 @@ if __name__ == '__main__':
     asyncio.run(setup_webhook())
 
     # Run the Flask app
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=8080, debug=True)
