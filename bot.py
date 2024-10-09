@@ -95,6 +95,7 @@ def main():
 
     # Start the bot
     application.run_webhook(listen='0.0.0.0', port=PORT, url_path='webhook')
+
     # Set the webhook URL
     bot.set_webhook(url=WEBHOOK_URL)
 
