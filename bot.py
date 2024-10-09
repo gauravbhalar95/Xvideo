@@ -10,6 +10,7 @@ app = Flask(__name__)
 
 # Your Telegram bot token from environment variables
 TOKEN = os.getenv('TELEGRAM_TOKEN')
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Add this for webhook URL
 
 # Dictionary to store user chat IDs for posting downloaded videos
 user_chat_ids = {}
@@ -96,8 +97,10 @@ def main() -> None:
     application.add_handler(CommandHandler("remove", remove_webhook))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Start the bot
+    # Set the webhook
     application.run_webhook(listen="0.0.0.0", port=int(os.environ.get('PORT', 5000)), url_path=TOKEN)
+    
+    # Start Flask app for handling webhook requests
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
 
 if __name__ == '__main__':
