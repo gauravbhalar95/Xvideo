@@ -3,9 +3,10 @@ import youtube_dl
 from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
+import asyncio
 
 # Your Telegram bot token
-TOKEN = os.environ.get('TOKEN')  # Ensure you set the environment variable in Koyeb
+TOKEN = os.environ.get('TOKEN')
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -21,7 +22,6 @@ def download_video(url):
         'quiet': True,
     }
 
-    # Create downloads directory if it doesn't exist
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
 
@@ -41,10 +41,8 @@ async def handle_message(update: Update, context):
     url = update.message.text.strip()
     await update.message.reply_text("Downloading video...")
 
-    # Call the download_video function
     video_path = download_video(url)
 
-    # Check if the video was downloaded successfully
     if os.path.exists(video_path):
         with open(video_path, 'rb') as video:
             await update.message.reply_video(video)
@@ -61,7 +59,6 @@ async def add_channel_group(update: Update, context):
     chat_id = context.args[0].strip()
 
     try:
-        # Test sending a message to the chat ID to check if it's valid and the bot has permission
         await context.bot.send_message(chat_id=chat_id, text="Channel/group successfully added!")
     except Exception as e:
         await update.message.reply_text(f"Error: {str(e)}. Please check the chat ID and try again.")
@@ -81,10 +78,14 @@ async def webhook():
     await application.process_update(update)
     return '', 200
 
+# Set up webhook asynchronously
+async def setup_webhook():
+    webhook_url = f'https://gorgeous-eloisa-telegramboth-0c5537ec.koyeb.app/webhook'  # Your Koyeb domain
+    await bot.set_webhook(webhook_url)
+
 if __name__ == '__main__':
-    # Set up the webhook URL
-    webhook_url = f'https://gorgeous-eloisa-telegramboth-0c5537ec.koyeb.app/webhook'  # Replace <YOUR_DOMAIN> with your actual domain
-    bot.setWebhook(webhook_url)
+    # Run webhook setup
+    asyncio.run(setup_webhook())
 
     # Run the Flask app
-    app.run(host='0.0.0.0', port=5000, Debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
