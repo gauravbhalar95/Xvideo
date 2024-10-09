@@ -11,7 +11,7 @@ app = Flask(__name__)
 # Load environment variables
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')  # Telegram bot token
 WEBHOOK_URL = os.environ.get('WEBHOOK_URL')  # Webhook URL
-PORT = int(os.environ.get('PORT', 5000))  # Port for Flask app
+PORT = int(os.environ.get('PORT', 10000))  # Port for Flask app
 
 # Dictionary to store user chat IDs for posting downloaded videos
 user_chat_ids = {}
