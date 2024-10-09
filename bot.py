@@ -1,16 +1,19 @@
 import os
 import youtube_dl
 from flask import Flask, request
-from telegram import Update
+from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from telegram.error import Forbidden, BadRequest
 
-# Initialize Flask application
+# Your Telegram bot token (should be set as an environment variable in Koyeb)
+TOKEN = os.getenv('TOKEN')
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Webhook URL for Telegram
+
+# Initialize Flask app
 app = Flask(__name__)
 
-# Your Telegram bot token from environment variables
-TOKEN = os.getenv('TELEGRAM_TOKEN')
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Add this for webhook URL
+# Create a Bot instance
+bot = Bot(token=TOKEN)
 
 # Dictionary to store user chat IDs for posting downloaded videos
 user_chat_ids = {}
@@ -19,8 +22,8 @@ user_chat_ids = {}
 def download_video(url):
     ydl_opts = {
         'format': 'bestvideo+bestaudio/best',  # Ensure highest quality video download
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'quiet': True,
+        'outtmpl': 'downloads/%(title)s.%(ext)s',  # Template for output file names
+        'quiet': True,  # Suppress output
     }
 
     # Create downloads directory if it doesn't exist
@@ -70,38 +73,28 @@ async def add_channel_group(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         user_chat_ids[update.effective_user.id] = chat_id
         await update.message.reply_text(f"Channel/group {chat_id} added successfully!")
     except Forbidden as e:
-        await update.message.reply_text(f"Error: {str(e)}. Bots can't send messages to other bots, or the bot doesn't have permission to send messages to this chat.")
+        await update.message.reply_text(f"Error: {str(e)}. The bot doesn't have permission to send messages to this chat.")
     except BadRequest:
         await update.message.reply_text("Invalid chat ID or the bot lacks permission to send messages to this chat. Please check the chat ID and try again.")
 
-# Command to remove the webhook
-async def remove_webhook(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await context.bot.delete_webhook()
-    await update.message.reply_text("Webhook removed successfully.")
-
-# Flask route to handle incoming updates from Telegram
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    update = request.get_json()
-    application.process_update(Update.de_json(update, application.bot))
-    return 'OK', 200
-
-def main() -> None:
-    # Create the application
-    global application
+    update = Update.de_json(request.get_json(force=True), bot)
     application = ApplicationBuilder().token(TOKEN).build()
 
-    # Register handlers
+    # Register handlers for the webhook
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("add", add_channel_group))
-    application.add_handler(CommandHandler("remove", remove_webhook))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Set the webhook
-    application.run_webhook(listen="0.0.0.0", port=int(os.environ.get('PORT', 5000)), url_path=TOKEN)
-    
-    # Start Flask app for handling webhook requests
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    # Process the update
+    application.process_update(update)
+
+    return 'OK'
+
+def set_webhook():
+    bot.set_webhook(url=WEBHOOK_URL)
 
 if __name__ == '__main__':
-    main()
+    set_webhook()  # Set the webhook when the app starts
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))  # Use the PORT environment variable set by Koyeb
