@@ -36,6 +36,7 @@ def download_video(url):
             info_dict = ydl.extract_info(url, download=True)
             return os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
     except Exception as e:
+        logger.error(f"Video download failed: {str(e)}")
         return str(e)
 
 # Command /start
