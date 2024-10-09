@@ -84,9 +84,11 @@ def webhook():
 # Set the webhook URL dynamically using an environment variable
 def set_webhook():
     # Get the base URL from an environment variable
-    base_url = os.getenv('BASE_URL')  # Set your base URL in environment variables
+    base_url = os.getenv('BASE_URL')
     webhook_url = f'{base_url}/{TOKEN}'
-    bot.set_webhook(url=webhook_url)
+    success = bot.set_webhook(url=webhook_url)
+    print(f"Webhook set to: {webhook_url}, Success: {success}")
+
 
 if __name__ == '__main__':
     # Create the application
