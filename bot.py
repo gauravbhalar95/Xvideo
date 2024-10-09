@@ -64,22 +64,21 @@ application = ApplicationBuilder().token(TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# Webhook endpoint
-@app.route('/webhook', methods=['POST'])
+# Flask app setup
+app = Flask(__name__)
+
+# Flask routes for webhook handling
+@app.route('/' + TOKEN, methods=['POST'])
+def getMessage_bot():
+    bot.process_new_updates([telebot.types.Update.de_json(request.stream.read().decode("utf-8"))])
+    return "!", 200
+
+@app.route('/')
 def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    application.process_update(update)
-    return '', 200
+    bot.remove_webhook()
+    bot.set_webhook(url=os.getenv('KOYEB_URL') + '/' + TOKEN, timeout=60)
+    return "Webhook set", 200
 
-# Set webhook URL
-async def setup_webhook():
-    webhook_url = f'https://gorgeous-eloisa-telegramboth-0c5537ec.koyeb.app/webhook'
-    await bot.set_webhook(webhook_url)
-
-if __name__ == '__main__':
-    # Set the webhook URL
-    import asyncio
-    asyncio.run(setup_webhook())
-    
-    # Run the Flask app
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8000)), debug=True)
+if __name__ == "__main__":
+    # Run the Flask app in debug mode
+    app.run(host='0.0.0.0', port=8080, debug=True)
