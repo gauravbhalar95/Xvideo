@@ -1,23 +1,26 @@
 import os
-import logging
-from flask import Flask, request
-from telegram import Bot, Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import youtube_dl
-
-# Initialize Flask app
-app = Flask(__name__)
+from flask import Flask, request
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.error import Forbidden, BadRequest
+import logging
 
 # Enable logging
 logging.basicConfig(level=logging.INFO)
 
-# Environment variables (replace with your actual environment variables)
-TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', 'your-telegram-bot-token')
-WEBHOOK_URL = os.environ.get('WEBHOOK_URL', 'your-koyeb-webhook-url')
+# Flask app initialization
+app = Flask(__name__)
 
-# Initialize the bot
-bot = Bot(token=TOKEN)
-application = Application.builder().token(TOKEN).build()  # Create application outside webhook
+# Your Telegram bot token
+TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
+WEBHOOK_URL = os.environ.get('WEBHOOK_URL')  # Replace with your actual webhook URL
+
+# Dictionary to store user chat IDs for posting downloaded videos
+user_chat_ids = {}
+
+# Create the application
+application = Application.builder().token(TOKEN).build()
 
 # Function to download video using youtube_dl
 def download_video(url):
@@ -27,7 +30,6 @@ def download_video(url):
         'quiet': True,
     }
 
-    # Create downloads directory if it doesn't exist
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
 
@@ -38,8 +40,12 @@ def download_video(url):
     except Exception as e:
         return str(e)
 
-# Function to handle messages
-async def handle_message(update: Update, context):
+# Command /start
+async def start(update: Update, context) -> None:
+    await update.message.reply_text("Welcome! Send me a video link to download.")
+
+# Handle pasted URLs
+async def handle_message(update: Update, context) -> None:
     url = update.message.text.strip()
     await update.message.reply_text("Downloading video...")
 
@@ -54,33 +60,48 @@ async def handle_message(update: Update, context):
     else:
         await update.message.reply_text(f"Error: {video_path}")
 
-# Command /start
-async def start(update: Update, context):
-    await update.message.reply_text("Welcome! Send me a video link to download.")
+# Command to add a channel/group
+async def add_channel_group(update: Update, context) -> None:
+    if len(context.args) == 0:
+        await update.message.reply_text("Please provide a valid chat ID (e.g., @your_channel or group ID like -123456789).")
+        return
 
-# Set up webhook route
+    chat_id = context.args[0].strip()
+
+    try:
+        # Test sending a message to the chat ID
+        await context.bot.send_message(chat_id=chat_id, text="Channel/group successfully added!")
+        user_chat_ids[update.effective_user.id] = chat_id
+        await update.message.reply_text(f"Channel/group {chat_id} added successfully!")
+    except Forbidden as e:
+        await update.message.reply_text(f"Error: {str(e)}. Bot doesn't have permission to send messages to this chat.")
+    except BadRequest:
+        await update.message.reply_text("Invalid chat ID or the bot lacks permission to send messages to this chat.")
+
+# Register handlers
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("add", add_channel_group))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+# Webhook route for Telegram
 @app.route('/webhook', methods=['POST'])
 def webhook():
     if request.method == 'POST':
-        update = Update.de_json(request.get_json(), bot)
-        application.update_queue.put(update)  # Process update with queue
+        update = Update.de_json(request.get_json(), application.bot)
+        application.update_queue.put(update)  # Process the update
         return 'OK', 200
 
 # Set webhook when the app starts
 @app.before_first_request
 def set_webhook():
-    bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
+    application.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
     logging.info(f"Webhook set to {WEBHOOK_URL}/webhook")
-
-# Add command handlers
-application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 # Test route
 @app.route('/')
 def home():
-    return 'Welcome to the Telegram bot Flask app!'
+    return "Welcome to the Telegram bot with Flask webhook!"
 
-# Main entry point for Flask app
-if __name__ == "__main__":
+# Main entry point
+if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
