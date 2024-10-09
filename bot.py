@@ -2,7 +2,7 @@ import os
 import youtube_dl
 from flask import Flask, request
 from telegram import Bot, Update
-from telegram.ext import CommandHandler, MessageHandler, Filters, Dispatcher
+from telegram.ext import CommandHandler, MessageHandler, filters, Dispatcher
 
 # Your Telegram bot token
 TOKEN = os.environ.get('TOKEN')  # Use environment variable for the token
@@ -82,14 +82,14 @@ def webhook():
     # Register handlers
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(CommandHandler("add", add_channel_group))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    dispatcher.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     dispatcher.process_update(update)
     return '', 200
 
 if __name__ == '__main__':
     # Set up the webhook
-    webhook_url = f'https://<YOUR_DOMAIN>/webhook'  # Replace <YOUR_DOMAIN> with your actual domain
+    webhook_url = f'https://gorgeous-eloisa-telegramboth-0c5537ec.koyeb.app/webhook'  # Replace <YOUR_DOMAIN> with your actual domain
     bot.setWebhook(webhook_url)
 
     # Run the Flask app
