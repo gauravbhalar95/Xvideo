@@ -1,19 +1,23 @@
 import os
-import youtube_dl
+import logging
 from flask import Flask, request
 from telegram import Bot, Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
-import logging
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
+import youtube_dl
 
 # Initialize Flask app
 app = Flask(__name__)
 
-# Environment variables (replace with your actual environment variables on Koyeb)
-TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', 'your-telegram-bot-token-here')
+# Enable logging
+logging.basicConfig(level=logging.INFO)
+
+# Environment variables (replace with your actual environment variables)
+TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', 'your-telegram-bot-token')
 WEBHOOK_URL = os.environ.get('WEBHOOK_URL', 'your-koyeb-webhook-url')
 
 # Initialize the bot
 bot = Bot(token=TOKEN)
+application = Application.builder().token(TOKEN).build()  # Create application outside webhook
 
 # Function to download video using youtube_dl
 def download_video(url):
@@ -59,14 +63,7 @@ async def start(update: Update, context):
 def webhook():
     if request.method == 'POST':
         update = Update.de_json(request.get_json(), bot)
-        application = ApplicationBuilder().token(TOKEN).build()
-
-        # Register command handlers
-        application.add_handler(CommandHandler("start", start))
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-        # Process the update
-        application.process_update(update)
+        application.update_queue.put(update)  # Process update with queue
         return 'OK', 200
 
 # Set webhook when the app starts
@@ -74,6 +71,10 @@ def webhook():
 def set_webhook():
     bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
     logging.info(f"Webhook set to {WEBHOOK_URL}/webhook")
+
+# Add command handlers
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 # Test route
 @app.route('/')
