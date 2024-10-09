@@ -1,29 +1,18 @@
 import os
 import youtube_dl
-import requests
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from telegram.error import Forbidden, BadRequest
-import logging
 
-# Your Telegram bot token
-TOKEN = '7232982155:AAGShfowEMxo6Mv651w5NMrkiZGiRfeHSmk'
+# Initialize Flask application
+app = Flask(__name__)
+
+# Your Telegram bot token from environment variables
+TOKEN = os.getenv('TELEGRAM_TOKEN')
 
 # Dictionary to store user chat IDs for posting downloaded videos
 user_chat_ids = {}
-
-# Initialize Flask app
-app = Flask(__name__)
-
-# Function to remove existing webhook
-def remove_webhook():
-    url = f"https://api.telegram.org/bot{TOKEN}/deleteWebhook"
-    response = requests.get(url)
-    if response.status_code == 200:
-        print("Webhook removed successfully.")
-    else:
-        print(f"Failed to remove webhook. Status code: {response.status_code}, Response: {response.text}")
 
 # Function to download video using youtube_dl
 def download_video(url):
@@ -84,31 +73,19 @@ async def add_channel_group(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     except BadRequest:
         await update.message.reply_text("Invalid chat ID or the bot lacks permission to send messages to this chat. Please check the chat ID and try again.")
 
-# Flask route for handling webhook
+# Command to remove the webhook
+async def remove_webhook(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await context.bot.delete_webhook()
+    await update.message.reply_text("Webhook removed successfully.")
+
+# Flask route to handle incoming updates from Telegram
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    application.update_queue.put(update)
-    return "OK"
+    update = request.get_json()
+    application.process_update(Update.de_json(update, application.bot))
+    return 'OK', 200
 
-# Function to set the new webhook
-def set_webhook():
-    webhook_url = f"https://your-koyeb-app-url/webhook"  # Replace with your public Koyeb app URL
-    url = f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}"
-    response = requests.get(url)
-    if response.status_code == 200:
-        print("Webhook set successfully.")
-    else:
-        print(f"Failed to set webhook. Status code: {response.status_code}, Response: {response.text}")
-
-# Main function
 def main() -> None:
-    # Remove the existing webhook
-    remove_webhook()
-
-    # Set the new webhook
-    set_webhook()
-
     # Create the application
     global application
     application = ApplicationBuilder().token(TOKEN).build()
@@ -116,10 +93,12 @@ def main() -> None:
     # Register handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("add", add_channel_group))
+    application.add_handler(CommandHandler("remove", remove_webhook))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Start Flask server for handling webhook
-    app.run(port=5000)
+    # Start the bot
+    application.run_webhook(listen="0.0.0.0", port=int(os.environ.get('PORT', 5000)), url_path=TOKEN)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
 
 if __name__ == '__main__':
     main()
