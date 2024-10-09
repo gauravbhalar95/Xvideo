@@ -1,4 +1,4 @@
-
+python-telegram-bot[webhooks]
 Werkzeug
 Flask==2.3.2
 python-telegram-bot==20.3
