@@ -73,7 +73,7 @@ def webhook():
 
 # Set webhook URL
 async def setup_webhook():
-    webhook_url = f'https://<your-koyeb-app-url>/webhook'
+    webhook_url = f'https://gorgeous-eloisa-telegramboth-0c5537ec.koyeb.app/webhook'
     await bot.set_webhook(webhook_url)
 
 if __name__ == '__main__':
