@@ -1,7 +1,7 @@
 import os
 import youtube_dl
 from flask import Flask, request
-from telegram import Update
+from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from telegram.error import Forbidden, BadRequest
 
@@ -78,19 +78,13 @@ async def add_channel_group(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 @app.route('/webhook', methods=['POST'])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
-    application = ApplicationBuilder().token(TOKEN).build()
-
-    # Register handlers for the webhook
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("add", add_channel_group))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Process the update
-    application.process_update(update)
-
+    application.process_update(update)  # Process the update
     return 'OK'
 
 def main():
+    global bot  # Declare bot as global to use it in the webhook function
+    bot = Bot(TOKEN)  # Create a Bot instance
+
     # Create the application
     application = ApplicationBuilder().token(TOKEN).build()
 
@@ -101,7 +95,8 @@ def main():
 
     # Start the bot
     application.run_webhook(listen='0.0.0.0', port=PORT, url_path='webhook')
-    application.bot.set_webhook(url=WEBHOOK_URL)
+    # Set the webhook URL
+    bot.set_webhook(url=WEBHOOK_URL)
 
 if __name__ == '__main__':
     main()
