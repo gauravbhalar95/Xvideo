@@ -4,6 +4,8 @@ from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import asyncio
+import time
+from telegram.error import RetryAfter
 
 # Your Telegram bot token
 TOKEN = os.environ.get('TOKEN')
@@ -79,9 +81,18 @@ async def webhook():
     return '', 200
 
 # Set up webhook asynchronously
+
+
 async def setup_webhook():
-    webhook_url = f'https://gorgeous-eloisa-telegramboth-0c5537ec.koyeb.app/webhook'  # Your Koyeb domain
-    await bot.set_webhook(webhook_url)
+    webhook_url = f'https://gorgeous-eloisa-telegramboth-0c5537ec.koyeb.app/webhook'
+    while True:
+        try:
+            await bot.set_webhook(webhook_url)
+            print("Webhook set successfully!")
+            break
+        except RetryAfter as e:
+            print(f"Flood control. Retry in {e.retry_after} seconds...")
+            time.sleep(e.retry_after)
 
 if __name__ == '__main__':
     # Run webhook setup
