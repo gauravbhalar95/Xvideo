@@ -6,7 +6,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 from telegram.error import Forbidden, BadRequest
 
 # Your Telegram bot token from the environment variable
-TOKEN = os.getenv('TOKEN')  # Set your bot token as an environment variable
+TOKEN = os.getenv('TOKEN')
 bot = Bot(token=TOKEN)
 
 # Create Flask app
@@ -81,14 +81,17 @@ def webhook():
     application.dispatcher.process_update(update)
     return 'ok'
 
+# Test route to verify the app is running
+@app.route('/')
+def home():
+    return "Bot is running."
+
 # Set the webhook URL dynamically using an environment variable
 def set_webhook():
-    # Get the base URL from an environment variable
     base_url = os.getenv('BASE_URL')
     webhook_url = f'{base_url}/{TOKEN}'
     success = bot.set_webhook(url=webhook_url)
     print(f"Webhook set to: {webhook_url}, Success: {success}")
-
 
 if __name__ == '__main__':
     # Create the application
