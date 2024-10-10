@@ -75,8 +75,8 @@ def getMessage_bot():
 
 @app.route('/')
 def webhook():
-    bot.remove_webhook()
-    bot.set_webhook(url=os.getenv('KOYEB_URL') + '/' + TOKEN, timeout=60)
+    Bot.remove_webhook()
+    Bot.set_webhook(url=os.getenv('KOYEB_URL') + '/' + TOKEN, timeout=60)
     return "Webhook set", 200
 
 if __name__ == "__main__":
