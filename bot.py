@@ -13,10 +13,16 @@ nest_asyncio.apply()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Your Telegram bot token
+# Get Telegram bot token from environment variables
 TOKEN = os.environ.get('TOKEN')
+if not TOKEN:
+    raise ValueError("No TOKEN provided. Set the TOKEN environment variable.")
+
 # Initialize Flask app
 app = Flask(__name__)
+
+# Create the Bot instance
+bot = Bot(token=TOKEN)
 
 # Function to download video using youtube_dl
 def download_video(url):
@@ -64,21 +70,27 @@ application = ApplicationBuilder().token(TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# Flask app setup
-app = Flask(__name__)
-
-# Flask routes for webhook handling
+# Flask route to handle webhook updates from Telegram
 @app.route('/' + TOKEN, methods=['POST'])
-def getMessage_bot():
-    bot.process_new_updates([telebot.types.Update.de_json(request.stream.read().decode("utf-8"))])
-    return "!", 200
+def webhook_handler():
+    # Process Telegram update
+    update = Update.de_json(request.get_json(force=True), bot)
+    application.process_update(update)
+    return "OK", 200
 
+# Route to set webhook
 @app.route('/')
-def webhook():
-    Bot.remove_webhook()
-    Bot.set_webhook(url=os.getenv('KOYEB_URL') + '/' + TOKEN, timeout=60)
-    return "Webhook set", 200
+def set_webhook():
+    webhook_url = os.getenv('KOYEB_URL') + '/' + TOKEN
+    if not webhook_url:
+        return "KOYEB_URL not set", 400
+
+    success = bot.set_webhook(webhook_url)
+    if success:
+        return f"Webhook set to {webhook_url}", 200
+    else:
+        return "Failed to set webhook", 500
 
 if __name__ == "__main__":
-    # Run the Flask app in debug mode
-    app.run(host='0.0.0.0', port=8000, debug=True)
+    # Run the Flask app
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8000)), debug=True)
