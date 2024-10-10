@@ -1,17 +1,20 @@
 import os
 import youtube_dl
-from flask import Flask, request
-from telegram import Update
+from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+import nest_asyncio
 
-# Initialize Flask app
-app = Flask(__name__)
+# Apply the patch for nested event loops
+nest_asyncio.apply()
 
-# Your Telegram bot token
-TOKEN = os.getenv("TOKEN")  # Use environment variables for the token
+# Telegram bot token (replace with your actual token)
+BOT_TOKEN = os.environ.get('TOKEN')
 
-# Create the bot application
-application = ApplicationBuilder().token(TOKEN).build()
+# Webhook URL (set as an environment variable)
+WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
+
+# Port (set as an environment variable)
+PORT = int(os.environ.get('PORT', 8080))  # Default to port 8080
 
 # Function to download video using youtube_dl
 def download_video(url):
@@ -38,40 +41,30 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Handle pasted URLs
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.message and update.message.text:
-        url = update.message.text.strip()
-        await update.message.reply_text("Downloading video...")
+    url = update.message.text.strip()
+    await update.message.reply_text("Downloading video...")
 
-        # Call the download_video function
-        video_path = download_video(url)
+    # Call the download_video function
+    video_path = download_video(url)
 
-        # Check if the video was downloaded successfully
-        if os.path.exists(video_path):
-            with open(video_path, 'rb') as video:
-                await update.message.reply_video(video)
-            os.remove(video_path)  # Remove the file after sending
-        else:
-            await update.message.reply_text(f"Error: {video_path}")
+    # Check if the video was downloaded successfully
+    if os.path.exists(video_path):
+        with open(video_path, 'rb') as video:
+            await update.message.reply_video(video)
+        os.remove(video_path)  # Remove the file after sending
     else:
-        await update.message.reply_text("Please send a valid URL to download a video.")
+        await update.message.reply_text(f"Error: {video_path}")
 
-# Register handlers
-application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+def main() -> None:
+    # Create the application
+    application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-@app.route('/' + TOKEN, methods=['POST'])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.update_queue.put(update)  # Process the update via the bot
-    return "OK", 200
+    # Register handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-@app.route('/set_webhook', methods=['GET', 'POST'])
-def set_webhook():
-    # Koyeb will give you the public domain for your app
-    webhook_url = f"https://{os.getenv('KOYEB_DOMAIN')}/{TOKEN}"
-    application.bot.set_webhook(url=webhook_url)
-    return "Webhook set!", 200
+    # Start the bot
+    application.run_polling(webhook_url=WEBHOOK_URL, port=PORT)
 
-if __name__ == "__main__":
-    # Start the Flask server
-    app.run(port=int(os.environ.get("PORT", 5000)), host="0.0.0.0", debug=True)
+if __name__ == '__main__':
+    main()
