@@ -11,14 +11,12 @@ nest_asyncio.apply()
 # Initialize Flask app
 app = Flask(__name__)
 
-# Telegram bot token from environment variable
+# Get the Telegram bot token from the environment variables
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 if not BOT_TOKEN:
-    print("Error: BOT_TOKEN environment variable is not set.")
-else:
-    print(f"Bot token found: {BOT_TOKEN[:5]}******")
+    raise RuntimeError("Error: BOT_TOKEN environment variable is not set")
 
-# Telegram application setup
+# Set up the Telegram application
 application = ApplicationBuilder().token(BOT_TOKEN).build()
 
 # Function to download video using youtube_dl
@@ -64,25 +62,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
+# Telegram webhook route to handle incoming updates
 @app.route('/' + BOT_TOKEN, methods=['POST'])
 def webhook():
     """Process incoming updates from Telegram via webhook."""
     update = Update.de_json(request.get_json(force=True), application.bot)
-    application.update_queue.put(update)  # Process the update via the bot
+    application.update_queue.put(update)  # Add the update to the queue for processing
     return "OK", 200
 
+# Route to set the webhook for Telegram
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook():
     """Sets the webhook for the bot to receive updates from Telegram."""
     KOYEB_DOMAIN = os.getenv('KOYEB_DOMAIN')
     if not KOYEB_DOMAIN:
-        return "Error: KOYEB_DOMAIN is not set", 500
+        return "Error: KOYEB_DOMAIN environment variable is not set", 500
 
     webhook_url = f"https://{KOYEB_DOMAIN}/{BOT_TOKEN}"
-    print(f"Setting webhook to {webhook_url}")
     application.bot.set_webhook(url=webhook_url)
-    return "Webhook set successfully!", 200
+    return f"Webhook set successfully to {webhook_url}", 200
 
+# Start the Flask app
 if __name__ == "__main__":
-    # Start Flask server to listen for webhook updates
-    app.run(port=int(os.environ.get('PORT', 8080)), host='0.0.0.0', debug=True)
+    port = int(os.getenv('PORT', 8080))
+    app.run(host='0.0.0.0', port=port, debug=True)
