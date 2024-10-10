@@ -1,5 +1,6 @@
 import os
 import youtube_dl
+from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
@@ -7,8 +8,14 @@ import nest_asyncio
 # Apply the patch for nested event loops
 nest_asyncio.apply()
 
-# Telegram bot token (replace with your actual token)
-BOT_TOKEN = os.environ.get('BOT_TOKEN')
+# Initialize Flask app
+app = Flask(__name__)
+
+# Telegram bot token from environment variable
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+
+# Create the application
+application = ApplicationBuilder().token(BOT_TOKEN).build()
 
 # Function to download video using youtube_dl
 def download_video(url):
@@ -49,16 +56,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     else:
         await update.message.reply_text(f"Error: {video_path}")
 
-def main() -> None:
-    # Create the application
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
+# Register handlers
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Register handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+@app.route('/' + BOT_TOKEN, methods=['POST'])
+def webhook():
+    """Process incoming updates from Telegram via webhook."""
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.update_queue.put(update)  # Process the update via the bot
+    return "OK", 200
 
-    # Start the bot
-    application.run_polling(port=int(os.environ.get('PORT', 8080)))  # Default to port 8080
+@app.route('/set_webhook', methods=['GET'])
+def set_webhook():
+    """Sets the webhook for the bot to receive updates from Telegram."""
+    webhook_url = f"https://{os.getenv('KOYEB_DOMAIN')}/{BOT_TOKEN}"
+    application.bot.set_webhook(url=webhook_url)
+    return "Webhook set successfully!", 200
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    # Start Flask server to listen for webhook updates
+    app.run(port=int(os.environ.get('PORT', 8080)), host='0.0.0.0', debug=True)
