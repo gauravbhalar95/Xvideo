@@ -1,7 +1,8 @@
 import os
 import youtube_dl
-from telegram import Update
+from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from flask import Flask, request
 import nest_asyncio
 
 # Apply the patch for nested event loops
@@ -9,6 +10,9 @@ nest_asyncio.apply()
 
 # Your Telegram bot token from environment variable
 TOKEN = os.getenv('TELEGRAM_TOKEN')
+
+# Initialize Flask app
+app = Flask(__name__)
 
 # Function to download video using youtube_dl
 def download_video(url):
@@ -57,8 +61,17 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Start the bot
+    # Start the bot in polling mode
     application.run_polling()
 
+# Flask route to handle webhook
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    bot = Bot(token=TOKEN)
+    update = Update.de_json(request.get_json(), bot)
+    application.process_update(update)
+    return 'ok', 200
+
 if __name__ == '__main__':
-    main()
+    # Run the Flask app on port 8000
+    app.run(host='0.0.0.0', port=8000)
