@@ -1,7 +1,7 @@
 import os
 import youtube_dl
 from flask import Flask, request
-from telegram import Update, Bot
+from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
 
@@ -13,8 +13,12 @@ app = Flask(__name__)
 
 # Telegram bot token from environment variable
 BOT_TOKEN = os.getenv('BOT_TOKEN')
+if not BOT_TOKEN:
+    print("Error: BOT_TOKEN environment variable is not set.")
+else:
+    print(f"Bot token found: {BOT_TOKEN[:5]}******")
 
-# Create the application
+# Telegram application setup
 application = ApplicationBuilder().token(BOT_TOKEN).build()
 
 # Function to download video using youtube_dl
@@ -70,7 +74,12 @@ def webhook():
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook():
     """Sets the webhook for the bot to receive updates from Telegram."""
-    webhook_url = f"https://{os.getenv('KOYEB_DOMAIN')}/{BOT_TOKEN}"
+    KOYEB_DOMAIN = os.getenv('KOYEB_DOMAIN')
+    if not KOYEB_DOMAIN:
+        return "Error: KOYEB_DOMAIN is not set", 500
+
+    webhook_url = f"https://{KOYEB_DOMAIN}/{BOT_TOKEN}"
+    print(f"Setting webhook to {webhook_url}")
     application.bot.set_webhook(url=webhook_url)
     return "Webhook set successfully!", 200
 
