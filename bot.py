@@ -57,8 +57,8 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Start the bot (without webhook and port arguments for now)
-    application.run_polling()
+    # Start the bot
+    application.run_polling(port=int(os.environ.get('PORT', 8080)))  # Default to port 8080
 
 if __name__ == '__main__':
     main()
