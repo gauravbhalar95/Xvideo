@@ -8,13 +8,7 @@ import nest_asyncio
 nest_asyncio.apply()
 
 # Telegram bot token (replace with your actual token)
-BOT_TOKEN = os.environ.get('TOKEN')
-
-# Webhook URL (set as an environment variable)
-WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
-
-# Port (set as an environment variable)
-PORT = int(os.environ.get('PORT', 8080))  # Default to port 8080
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
 
 # Function to download video using youtube_dl
 def download_video(url):
@@ -63,8 +57,8 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Start the bot
-    application.run_polling(webhook_url=WEBHOOK_URL, port=PORT)
+    # Start the bot (without webhook and port arguments for now)
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
