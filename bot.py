@@ -2,7 +2,7 @@ import os
 import youtube_dl
 from flask import Flask, request
 from telegram import Update, Bot
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 import nest_asyncio
 import logging
 
@@ -13,16 +13,12 @@ nest_asyncio.apply()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Get Telegram bot token from environment variables
+# Your Telegram bot token and webhook URL
 TOKEN = os.environ.get('TOKEN')
-if not TOKEN:
-    raise ValueError("No TOKEN provided. Set the TOKEN environment variable.")
+WEBHOOK_URL = os.getenv('KOYEB_URL') + '/' + TOKEN
 
 # Initialize Flask app
 app = Flask(__name__)
-
-# Create the Bot instance
-bot = Bot(token=TOKEN)
 
 # Function to download video using youtube_dl
 def download_video(url):
@@ -44,11 +40,11 @@ def download_video(url):
         return str(e)
 
 # Command /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start(update: Update, context) -> None:
     await update.message.reply_text("Welcome! Send me a video link to download.")
 
 # Handle pasted URLs
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_message(update: Update, context) -> None:
     url = update.message.text.strip()
     await update.message.reply_text("Downloading video...")
 
@@ -70,27 +66,20 @@ application = ApplicationBuilder().token(TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# Flask route to handle webhook updates from Telegram
+# Flask routes for webhook handling
 @app.route('/' + TOKEN, methods=['POST'])
 def webhook_handler():
-    # Process Telegram update
     update = Update.de_json(request.get_json(force=True), bot)
     application.process_update(update)
     return "OK", 200
 
-# Route to set webhook
 @app.route('/')
 def set_webhook():
-    webhook_url = os.getenv('KOYEB_URL') + '/' + TOKEN
-    if not webhook_url:
-        return "KOYEB_URL not set", 400
-
-    success = bot.set_webhook(webhook_url)
-    if success:
-        return f"Webhook set to {webhook_url}", 200
-    else:
-        return "Failed to set webhook", 500
+    bot = Bot(token=TOKEN)
+    bot.delete_webhook()  # Remove any previous webhook
+    bot.set_webhook(url=WEBHOOK_URL)
+    return f"Webhook set to {WEBHOOK_URL}", 200
 
 if __name__ == "__main__":
-    # Run the Flask app
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8000)), debug=True)
+    # Start Flask app
+    app.run(host='0.0.0.0', port=8000, debug=True)
