@@ -7,10 +7,15 @@ import nest_asyncio
 # Apply the patch for nested event loops
 nest_asyncio.apply()
 
-# Your Telegram bot token
+# Your Telegram bot token and webhook URL from environment variables
 TOKEN = os.getenv('BOT_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-PORT = os.getenv('PORT','PORT=8443')  # Replace with your desired port
+PORT = int(os.getenv('PORT', 8443))  # Default to 8443 if not set
+
+if not TOKEN:
+    raise ValueError("Error: BOT_TOKEN is not set")
+if not WEBHOOK_URL:
+    raise ValueError("Error: WEBHOOK_URL is not set")
 
 # Function to download video using youtube_dl
 def download_video(url):
@@ -53,18 +58,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 def main() -> None:
     # Create the application with webhook
-    application = ApplicationBuilder().token(TOKEN).webhook_url(WEBHOOK_URL).build()
+    application = ApplicationBuilder().token(TOKEN).build()
 
     # Register handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Start the bot with webhook
+    # Extract the webhook path (the token itself is used as the path)
+    url_path = WEBHOOK_URL.split('/')[-1]
+
+    # Start the bot using webhook
     application.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=WEBHOOK_URL.split('/')[-1],
-        webhook_url=WEBHOOK_URL
+        listen="0.0.0.0",  # Listen on all network interfaces
+        port=PORT,  # The port from environment variables
+        url_path=url_path,  # Use the path part from WEBHOOK_URL
+        webhook_url=WEBHOOK_URL  # Telegram's webhook URL
     )
 
 if __name__ == '__main__':
