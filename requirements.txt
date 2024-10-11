@@ -6,5 +6,5 @@ youtube_dl==2021.12.17
 requests==2.31.0
 Flask[async]
 nest_asyncio
-
+yt-dlp
 
