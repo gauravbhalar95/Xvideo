@@ -11,7 +11,7 @@ nest_asyncio.apply()
 # Initialize Flask app
 app = Flask(__name__)
 
-# Get the Telegram bot token from the environment variables
+# Telegram bot token from environment variable
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 if not BOT_TOKEN:
     raise RuntimeError("Error: BOT_TOKEN environment variable is not set")
