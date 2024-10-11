@@ -1,6 +1,5 @@
 import os
 import youtube_dl
-from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
@@ -8,16 +7,10 @@ import nest_asyncio
 # Apply the patch for nested event loops
 nest_asyncio.apply()
 
-# Initialize Flask app
-app = Flask(__name__)
-
-# Telegram bot token from environment variable
-BOT_TOKEN = os.getenv('BOT_TOKEN')
-if not BOT_TOKEN:
-    raise RuntimeError("Error: BOT_TOKEN environment variable is not set")
-
-# Set up the Telegram application
-application = ApplicationBuilder().token(BOT_TOKEN).build()
+# Your Telegram bot token
+TOKEN = os.getenv('BOT_TOKEN')
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')
+PORT = os.getenv('PORT',PORT=8443)  # Replace with your desired port
 
 # Function to download video using youtube_dl
 def download_video(url):
@@ -58,31 +51,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     else:
         await update.message.reply_text(f"Error: {video_path}")
 
-# Register handlers
-application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+def main() -> None:
+    # Create the application with webhook
+    application = ApplicationBuilder().token(TOKEN).webhook_url(WEBHOOK_URL).build()
 
-# Telegram webhook route to handle incoming updates
-@app.route('/' + BOT_TOKEN, methods=['POST'])
-def webhook():
-    """Process incoming updates from Telegram via webhook."""
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.update_queue.put(update)  # Add the update to the queue for processing
-    return "OK", 200
+    # Register handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# Route to set the webhook for Telegram
-@app.route('/set_webhook', methods=['GET'])
-def set_webhook():
-    """Sets the webhook for the bot to receive updates from Telegram."""
-    KOYEB_DOMAIN = os.getenv('KOYEB_DOMAIN')
-    if not KOYEB_DOMAIN:
-        return "Error: KOYEB_DOMAIN environment variable is not set", 500
+    # Start the bot with webhook
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=WEBHOOK_URL.split('/')[-1],
+        webhook_url=WEBHOOK_URL
+    )
 
-    webhook_url = f"https://{KOYEB_DOMAIN}/{BOT_TOKEN}"
-    application.bot.set_webhook(url=webhook_url)
-    return f"Webhook set successfully to {webhook_url}", 200
-
-# Start the Flask app
-if __name__ == "__main__":
-    port = int(os.getenv('PORT', 8080))
-    app.run(host='0.0.0.0', port=port, debug=True)
+if __name__ == '__main__':
+    main()
