@@ -1,5 +1,5 @@
 import os
-import youtube_dl
+import yt_dlp as youtube_dl
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
@@ -17,7 +17,7 @@ if not TOKEN:
 if not WEBHOOK_URL:
     raise ValueError("Error: WEBHOOK_URL is not set")
 
-# Function to download video using youtube_dl
+# Function to download video using yt-dlp
 def download_video(url):
     ydl_opts = {
         'format': 'best',
