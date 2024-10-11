@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Expose port 8000
-EXPOSE 
+EXPOSE 8080
 
 # Set the command to run the bot
 CMD ["python", "app.py"]  # Replace with the actual filename
