@@ -98,3 +98,11 @@ def main() -> None:
     application = ApplicationBuilder().token(TOKEN).build()
 
     # Register command
+ application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+# Start the bot
+    application.run_polling()
+
+if __name__ == '__main__':
+    main()
