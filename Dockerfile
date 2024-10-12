@@ -1,19 +1,24 @@
 # Use the official Python image from the Docker Hub
-FROM python:3.10-slim
+FROM python:3.9-slim
 
 # Set the working directory
 WORKDIR /app
 
-# Copy requirements.txt and install dependencies
+# Copy the requirements file and install dependencies
 COPY requirements.txt .
-
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code
+# Copy the entire project to the working directory
 COPY . .
 
-# Expose port 8000
-EXPOSE 8080
+# Download FFmpeg
+RUN apt-get update && \
+    apt-get install -y wget && \
+    wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-i686-static.tar.xz && \
+    tar -xvf ffmpeg-release-i686-static.tar.xz && \
+    mv ffmpeg-*/ffmpeg ./ffmpeg && \
+    rm -rf ffmpeg-* && \
+    chmod +x ./ffmpeg  # Make the ffmpeg binary executable
 
-# Set the command to run the bot
-CMD ["python", "app.py"]  # Replace with the actual filename
+# Command to run your bot
+CMD ["python", "main.py"]
