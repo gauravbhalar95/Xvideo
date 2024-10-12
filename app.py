@@ -1,5 +1,9 @@
 import os
 import subprocess
+import yt_dlp as youtube_dl
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+import nest_asyncio
 
 # Function to download ffmpeg binary during runtime
 def download_ffmpeg():
@@ -25,11 +29,6 @@ def download_ffmpeg():
 download_ffmpeg()
 
 # Your existing bot code starts here...
-import yt_dlp as youtube_dl
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-import nest_asyncio
-
 # Apply the patch for nested event loops
 nest_asyncio.apply()
 
