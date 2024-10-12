@@ -1,4 +1,26 @@
 import os
+import subprocess
+
+# Function to download ffmpeg binary during runtime
+def download_ffmpeg():
+    if not os.path.exists('./ffmpeg'):  # Check if ffmpeg is already downloaded
+        print("Downloading ffmpeg...")
+        # Download the static ffmpeg binary
+        subprocess.run([
+            "wget",
+            "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-i686-static.tar.xz"
+        ])
+        # Extract the ffmpeg binary
+        subprocess.run(["tar", "-xvf", "ffmpeg-release-i686-static.tar.xz"])
+        # Move the binary to the project root directory
+        subprocess.run(["mv", "ffmpeg-*/ffmpeg", "./ffmpeg"])
+        # Clean up the unnecessary files
+        subprocess.run(["rm", "-rf", "ffmpeg-*"])
+
+# Download ffmpeg at runtime
+download_ffmpeg()
+
+# Your existing bot code starts here...
 import yt_dlp as youtube_dl
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
@@ -17,13 +39,16 @@ if not TOKEN:
 if not WEBHOOK_URL:
     raise ValueError("Error: WEBHOOK_URL is not set")
 
-# Function to download video using yt-dlp
+# Function to download video using yt-dlp with local ffmpeg binary
 def download_video(url):
     ydl_opts = {
-        'format': 'best',
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
+        'format': 'best',  # Download the best available quality
+        'outtmpl': 'downloads/%(title)s.%(ext)s',  # Save in downloads folder
+        'quiet': True,  # Suppress verbose output
         'ffmpeg_location': './ffmpeg',  # Use the local ffmpeg binary
-        'quiet': True,
+        'retries': 3,  # Retry 3 times on download failure
+        'continuedl': True,  # Continue downloading if interrupted
+        'noplaylist': True,  # Download only a single video if playlist is provided
     }
 
     if not os.path.exists('downloads'):
@@ -37,7 +62,6 @@ def download_video(url):
     except Exception as e:
         print(f"Error downloading video: {e}")
         return None, None
-
 
 # Command /start to welcome the user
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
