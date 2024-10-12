@@ -20,13 +20,12 @@ if not WEBHOOK_URL:
 # Function to download video using yt-dlp
 def download_video(url):
     ydl_opts = {
-        'format': 'best',  # Download the best available quality
-        'outtmpl': 'downloads/%(title)s.%(ext)s',  # Save in downloads folder
-        'quiet': True,  # Suppress verbose output
-        'noplaylist': True,  # Download only a single video if a playlist is provided
+        'format': 'best',
+        'outtmpl': 'downloads/%(title)s.%(ext)s',
+        'ffmpeg_location': './ffmpeg',  # Use the local ffmpeg binary
+        'quiet': True,
     }
 
-    # Create downloads directory if it doesn't exist
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
 
@@ -38,6 +37,7 @@ def download_video(url):
     except Exception as e:
         print(f"Error downloading video: {e}")
         return None, None
+
 
 # Command /start to welcome the user
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
