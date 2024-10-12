@@ -5,18 +5,22 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
 
+# Apply the patch for nested event loops
+nest_asyncio.apply()
+
 # Function to download ffmpeg binary during runtime
 def download_ffmpeg():
     if not os.path.exists('./ffmpeg'):  # Check if ffmpeg is already downloaded
         print("Downloading ffmpeg...")
-        # Download the static ffmpeg binary
+        # Download the static ffmpeg binary from Google Drive
         try:
             subprocess.run([
                 "wget",
-                "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-i686-static.tar.xz"
+                "https://drive.google.com/drive/folders/1Lv03z0vBvhDxCJfp8DTuVlB8ks3EexRv",
+                "-O", "ffmpeg-release-static.tar.xz"
             ], check=True)  # Raise an error if the download fails
             # Extract the ffmpeg binary
-            subprocess.run(["tar", "-xvf", "ffmpeg-release-i686-static.tar.xz"], check=True)
+            subprocess.run(["tar", "-xvf", "ffmpeg-release-static.tar.xz"], check=True)
             # Move the binary to the project root directory
             subprocess.run(["mv", "ffmpeg-*/ffmpeg", "./ffmpeg"], check=True)
         except subprocess.CalledProcessError as e:
@@ -28,11 +32,7 @@ def download_ffmpeg():
 # Download ffmpeg at runtime
 download_ffmpeg()
 
-# Your existing bot code starts here...
-# Apply the patch for nested event loops
-nest_asyncio.apply()
-
-# Your Telegram bot token and webhook URL from environment variables
+# Telegram bot setup
 TOKEN = os.getenv('BOT_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 PORT = int(os.getenv('PORT', 8443))  # Default to 8443 if not set
@@ -45,16 +45,15 @@ if not WEBHOOK_URL:
 # Function to download video using yt-dlp with local ffmpeg binary
 def download_video(url):
     ydl_opts = {
-        'format': 'best',  # Download the best available quality
-        'outtmpl': 'downloads/%(title)s.%(ext)s',  # Save in downloads folder
-        'quiet': True,  # Suppress verbose output
-        'ffmpeg_location': './ffmpeg',  # Use the local ffmpeg binary
-        'retries': 3,  # Retry 3 times on download failure
-        'continuedl': True,  # Continue downloading if interrupted
-        'noplaylist': True,  # Download only a single video if playlist is provided
+        'format': 'best',
+        'outtmpl': 'downloads/%(title)s.%(ext)s',
+        'quiet': True,
+        'ffmpeg_location': './ffmpeg',
+        'retries': 3,
+        'continuedl': True,
+        'noplaylist': True,
     }
 
-    # Create downloads directory if it doesn't exist
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
 
