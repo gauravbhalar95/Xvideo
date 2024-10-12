@@ -12,6 +12,8 @@ def download_ffmpeg():
         ])
         # Extract the ffmpeg binary
         subprocess.run(["tar", "-xvf", "ffmpeg-release-i686-static.tar.xz"])
+        # List the contents to verify the directory name
+        subprocess.run(["ls", "-l"])
         # Move the binary to the project root directory
         subprocess.run(["mv", "ffmpeg-*/ffmpeg", "./ffmpeg"])
         # Clean up the unnecessary files
@@ -95,20 +97,4 @@ def main() -> None:
     # Create the application with webhook
     application = ApplicationBuilder().token(TOKEN).build()
 
-    # Register command handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Extract the webhook path (the token itself is used as the path)
-    url_path = WEBHOOK_URL.split('/')[-1]
-
-    # Start the bot using webhook
-    application.run_webhook(
-        listen="0.0.0.0",  # Listen on all network interfaces
-        port=PORT,  # The port from environment variables
-        url_path=url_path,  # Use the path part from WEBHOOK_URL
-        webhook_url=WEBHOOK_URL  # Telegram's webhook URL
-    )
-
-if __name__ == '__main__':
-    main()
+    # Register command
