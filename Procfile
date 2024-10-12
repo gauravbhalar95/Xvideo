@@ -1,1 +1,1 @@
-web: ./install_ffmpeg.sh && python app.py
+web: apt-get update && apt-get install -y ffmpeg && python app.py
