@@ -6,16 +6,18 @@ def download_ffmpeg():
     if not os.path.exists('./ffmpeg'):  # Check if ffmpeg is already downloaded
         print("Downloading ffmpeg...")
         # Download the static ffmpeg binary
-        subprocess.run([
-            "wget",
-            "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-i686-static.tar.xz"
-        ])
-        # Extract the ffmpeg binary
-        subprocess.run(["tar", "-xvf", "ffmpeg-release-i686-static.tar.xz"])
-        # List the contents to verify the directory name
-        subprocess.run(["ls", "-l"])
-        # Move the binary to the project root directory
-        subprocess.run(["mv", "ffmpeg-*/ffmpeg", "./ffmpeg"])
+        try:
+            subprocess.run([
+                "wget",
+                "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-i686-static.tar.xz"
+            ], check=True)  # Raise an error if the download fails
+            # Extract the ffmpeg binary
+            subprocess.run(["tar", "-xvf", "ffmpeg-release-i686-static.tar.xz"], check=True)
+            # Move the binary to the project root directory
+            subprocess.run(["mv", "ffmpeg-*/ffmpeg", "./ffmpeg"], check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error during ffmpeg download/extraction: {e}")
+            return
         # Clean up the unnecessary files
         subprocess.run(["rm", "-rf", "ffmpeg-*"])
 
@@ -53,6 +55,7 @@ def download_video(url):
         'noplaylist': True,  # Download only a single video if playlist is provided
     }
 
+    # Create downloads directory if it doesn't exist
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
 
@@ -98,10 +101,10 @@ def main() -> None:
     application = ApplicationBuilder().token(TOKEN).build()
 
     # Register command
- application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# Start the bot
+    # Start the bot
     application.run_polling()
 
 if __name__ == '__main__':
