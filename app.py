@@ -20,12 +20,11 @@ if not WEBHOOK_URL:
 
 # Function to download video using yt-dlp
 def download_video(url):
-    # yt-dlp options
     ydl_opts = {
         'format': 'best',  # Download the best available quality
         'outtmpl': 'downloads/%(title)s.%(ext)s',  # Save in downloads folder
         'quiet': True,  # Suppress verbose output
-        'ffmpeg_location': '/usr/bin/ffmpeg',  # Ensure ffmpeg is installed
+        'ffmpeg_location': './ffmpeg',  # Point to the local ffmpeg binary
         'retries': 3,  # Retry 3 times on download failure
         'continuedl': True,  # Continue downloading if interrupted
         'noplaylist': True,  # Download only a single video if playlist is provided
@@ -49,7 +48,7 @@ def download_video(url):
 def compress_video(input_path, output_path):
     try:
         subprocess.run([
-            'ffmpeg', '-i', input_path, '-vcodec', 'libx264', '-crf', '28',  # Compression level (CRF)
+            './ffmpeg', '-i', input_path, '-vcodec', 'libx264', '-crf', '28',  # Compression level (CRF)
             '-preset', 'fast', '-y', output_path
         ], check=True)
         return output_path
