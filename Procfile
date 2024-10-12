@@ -1,1 +1,1 @@
-web: python bot.py
+web: ./install_ffmpeg.sh && python app.py
