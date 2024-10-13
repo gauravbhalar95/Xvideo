@@ -1,7 +1,7 @@
-# Use an official Python runtime as a parent image
+# Use the official Python image from the Docker Hub
 FROM python:3.9-slim
 
-# Set the working directory in the container
+# Set the working directory
 WORKDIR /app
 
 # Install dependencies
@@ -10,7 +10,6 @@ RUN apt-get update && \
     wget \
     build-essential \
     libass-dev \
-    libfdk-aac-dev \
     libmp3lame-dev \
     libopus-dev \
     libtheora-dev \
@@ -21,22 +20,17 @@ RUN apt-get update && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install FFmpeg
-RUN wget https://ffmpeg.org/releases/ffmpeg-release-full.tar.bz2 && \
-    tar -xjf ffmpeg-release-full.tar.bz2 && \
-    cd ffmpeg-* && \
-    ./configure --enable-gpl --enable-nonfree --enable-libfdk-aac --enable-libmp3lame --enable-libx264 --enable-libx265 --enable-libtheora --enable-libvorbis --enable-libopus && \
-    make && \
-    make install && \
-    make clean && \
-    cd .. && \
-    rm -rf ffmpeg-release-full.tar.bz2 ffmpeg-*
-
-# Copy your application code
-COPY . .
+# Copy the requirements file into the container
+COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Set the command to run your app
-CMD ["python", "app.py"]
+# Copy the rest of the application code into the container
+COPY . .
+
+# Command to run the application
+CMD ["python", "your_script.py"]  # Replace 'your_script.py' with the main script of your application
+
+# Expose the port the app runs on (if applicable)
+EXPOSE 5000  # Change this to the port your app uses
