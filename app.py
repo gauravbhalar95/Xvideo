@@ -1,24 +1,30 @@
 import os
 import subprocess
 import yt_dlp as youtube_dl
+from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Dispatcher
 import nest_asyncio
 
 # Apply the patch for nested event loops
 nest_asyncio.apply()
 
 # Path to the static ffmpeg binary
-FFMPEG_PATH = '/bin/ffmpeg'  # Update this path based on your environment
+FFMPEG_PATH = os.getenv('FFMPEG_PATH', '/bin/ffmpeg')  # Update this path based on your environment
+
+# Initialize Flask app
+app = Flask(__name__)
 
 # Telegram bot setup
 TOKEN = os.getenv('BOT_TOKEN')
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Make sure to set this in your environment
 
-if not TOKEN:
-    raise ValueError("Error: BOT_TOKEN is not set")
+if not TOKEN or not WEBHOOK_URL:
+    raise ValueError("Error: BOT_TOKEN and WEBHOOK_URL must be set")
 
 # Compression quality
-CRF_VALUE = 18  # Lower value means better quality, range: 18-28
+CRF_VALUE = int(os.getenv('CRF_VALUE', 18))  # Lower value means better quality, range: 18-28
 
 # Function to download video using yt-dlp
 def download_video(url):
@@ -103,16 +109,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     else:
         await update.message.reply_text("Error: Unable to download the video. The URL may not be supported or invalid.")
 
+# Webhook endpoint for Telegram
+@app.route(f'/{TOKEN}', methods=['POST'])
+def webhook() -> str:
+    update = Update.de_json(request.get_json(force=True), dispatcher.bot)
+    dispatcher.process_update(update)
+    return 'ok'
+
+# Set webhook route
+@app.route('/set_webhook', methods=['GET'])
+def set_webhook() -> str:
+    updater.bot.setWebhook(WEBHOOK_URL)
+    return f'Webhook set to {WEBHOOK_URL}'
+
 # Main function to run the bot
 def main() -> None:
     # Create the bot application
     application = ApplicationBuilder().token(TOKEN).build()
+    global dispatcher
+    dispatcher = application.dispatcher
 
     # Register commands and message handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Start the bot with polling
+    # Start the bot with the Flask app
     application.run_polling()
 
 if __name__ == '__main__':
