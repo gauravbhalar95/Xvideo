@@ -33,4 +33,4 @@ COPY . .
 CMD ["python", "your_script.py"]  # Replace 'your_script.py' with the main script of your application
 
 # Expose the port the app runs on (if applicable)
-EXPOSE 5000  # Change this to the port your app uses
+EXPOSE 8000  # Change this to the port your app uses
