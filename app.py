@@ -3,13 +3,9 @@ import yt_dlp as youtube_dl
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
-import subprocess
 
 # Apply the patch for nested event loops
 nest_asyncio.apply()
-
-# Path to the static ffmpeg binary
-FFMPEG_PATH = './ffmpeg'
 
 # Telegram bot setup
 TOKEN = os.getenv('BOT_TOKEN')
@@ -23,7 +19,6 @@ def download_video(url):
         'format': 'best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'quiet': True,
-        'ffmpeg_location': FFMPEG_PATH,  # Specify local ffmpeg binary
         'retries': 3,
         'continuedl': True,
         'noplaylist': True,
