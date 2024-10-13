@@ -53,7 +53,17 @@ def download_video(url):
 def compress_video(input_path):
     video_title = os.path.splitext(os.path.basename(input_path))[0]
     output_path = os.path.join('downloads', f"compressed_{video_title}.mp4")
-    command = [FFMPEG_PATH, '-i', input_path, '-vcodec', 'libx264', '-crf', str(CRF_VALUE), output_path]
+    
+    # Adjust the command to include preset and threads for faster processing
+    command = [
+        FFMPEG_PATH, 
+        '-i', input_path, 
+        '-vcodec', 'libx264', 
+        '-crf', str(CRF_VALUE), 
+        '-preset', 'fast', 
+        '-threads', 'auto', 
+        output_path
+    ]
 
     try:
         print(f"Running ffmpeg command: {' '.join(command)}")  # Debugging: show the command
