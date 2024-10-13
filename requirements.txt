@@ -1,9 +1,9 @@
 python-telegram-bot[webhooks]
 Werkzeug
-Flask==2.3.2
-python-telegram-bot==20.3
-youtube_dl==2021.12.17
-requests==2.31.0
+Flask
+python-telegram-bot
+youtube_dl
+requests
 Flask[async]
 nest_asyncio
 yt-dlp
