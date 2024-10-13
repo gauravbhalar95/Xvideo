@@ -82,18 +82,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         # Check if the file is larger than 100MB
         if file_size > 100 * 1024 * 1024:  # 100MB limit
-            await update.message.reply_text(f"The video is larger than 100MB ({file_size / (1024 * 1024):.2f}MB). Compressing it...")
+            # Ask the user if they want to compress the video
+            await update.message.reply_text(
+                f"The video is larger than 100MB ({file_size / (1024 * 1024):.2f}MB). "
+                "Would you like to compress it? Reply with 'Yes' or 'No'."
+            )
 
-            # Compress the video
-            video_compressed_path = compress_video(video_path)
+            # Wait for the user's response
+            response = await context.bot.wait_for_message(chat_id=update.effective_chat.id, timeout=60)
+            if response and response.text.strip().lower() == 'yes':
+                await update.message.reply_text("Compressing the video...")
+                # Compress the video
+                video_compressed_path = compress_video(video_path)
 
-            # Check if compression was successful
-            if video_compressed_path and os.path.exists(video_compressed_path):
-                with open(video_compressed_path, 'rb') as video:
-                    await update.message.reply_video(video, caption=f"Here is your compressed video: {video_title}")
-                os.remove(video_compressed_path)  # Remove the compressed file after sending
+                # Check if compression was successful
+                if video_compressed_path and os.path.exists(video_compressed_path):
+                    with open(video_compressed_path, 'rb') as video:
+                        await update.message.reply_video(video, caption=f"Here is your compressed video: {video_title}")
+                    os.remove(video_compressed_path)  # Remove the compressed file after sending
+                else:
+                    await update.message.reply_text("Error: Compression failed. Please try again later.")
             else:
-                await update.message.reply_text("Error: Compression failed. Please try again later.")
+                await update.message.reply_text("Sending the video without compression...")
+                with open(video_path, 'rb') as video:
+                    await update.message.reply_video(video, caption=f"Here is your video: {video_title}")
+
         else:
             await update.message.reply_text(f"The video size is acceptable ({file_size / (1024 * 1024):.2f}MB). Sending it...")
             with open(video_path, 'rb') as video:
