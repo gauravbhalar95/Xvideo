@@ -9,13 +9,16 @@ import nest_asyncio
 nest_asyncio.apply()
 
 # Path to the static ffmpeg binary
-FFMPEG_PATH = '/bin/ffmpeg'  # Set the correct path for ffmpeg
+FFMPEG_PATH = '/bin/ffmpeg'  # Update this path based on your environment
 
 # Telegram bot setup
 TOKEN = os.getenv('BOT_TOKEN')
 
 if not TOKEN:
     raise ValueError("Error: BOT_TOKEN is not set")
+
+# Compression quality
+CRF_VALUE = 28  # Lower value means better quality, range: 18-28
 
 # Function to download video using yt-dlp
 def download_video(url):
@@ -46,8 +49,8 @@ def download_video(url):
 def compress_video(input_path):
     video_title = os.path.splitext(os.path.basename(input_path))[0]
     output_path = os.path.join('downloads', f"compressed_{video_title}.mp4")
-    command = [FFMPEG_PATH, '-i', input_path, '-vcodec', 'libx264', '-crf', '28', output_path]
-    
+    command = [FFMPEG_PATH, '-i', input_path, '-vcodec', 'libx264', '-crf', str(CRF_VALUE), output_path]
+
     try:
         subprocess.run(command, check=True)
         print(f"Video compressed to: {output_path}")  # Debugging output
@@ -86,7 +89,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     await update.message.reply_video(video, caption=f"Here is your compressed video: {video_title}")
                 os.remove(video_compressed_path)  # Remove the compressed file after sending
             else:
-                await update.message.reply_text("Error: Compression failed.")
+                await update.message.reply_text("Error: Compression failed. Please try again later.")
         else:
             await update.message.reply_text(f"The video size is acceptable ({file_size / (1024 * 1024):.2f}MB). Sending it...")
             with open(video_path, 'rb') as video:
