@@ -1,25 +1,33 @@
-# Use the official Python image from the Docker Hub
-FROM python:3.9-slim
+# Use an official Python runtime as a parent image
+FROM python:3.12-slim
 
-# Set the working directory
+# Set environment variables for Python
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Set the working directory in the container
 WORKDIR /app
 
-# Copy the requirements file and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Download and install ffmpeg
+# Install FFmpeg
 RUN apt-get update && \
     apt-get install -y wget && \
-    wget -q https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-i686-static.tar.xz && \
-    tar -xf ffmpeg-release-i686-static.tar.xz && \
-    mv ffmpeg-* ffmpeg && \
-    chmod +x ffmpeg/ffmpeg && \
-    mv ffmpeg/ffmpeg /usr/local/bin/ffmpeg && \
-    rm -rf ffmpeg-* ffmpeg-release-i686-static.tar.xz
+    wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-i686-static.tar.xz && \
+    tar -xvf ffmpeg-release-i686-static.tar.xz && \
+    mv ffmpeg-*/ffmpeg /usr/local/bin/ffmpeg && \
+    rm -rf ffmpeg-*
 
-# Copy the entire project to the working directory
-COPY . .
+# Install any necessary system dependencies
+RUN apt-get update && apt-get install -y libmagic1 && apt-get clean
 
-# Command to run your bot
-CMD ["python", "main.py"]
+# Copy the current directory contents into the container at /app
+COPY . /app
+
+# Install any needed Python packages specified in requirements.txt
+COPY requirements.txt /app/
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Expose the port
+EXPOSE 8443
+
+# Run the bot
+CMD ["python", "bot.py"]
