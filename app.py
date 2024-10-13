@@ -20,12 +20,22 @@ def download_ffmpeg():
                 "-O", "ffmpeg-release-static.tar.xz"
             ], check=True)  # Raise an error if the download fails
             # Extract the ffmpeg binary
-            subprocess.run(["tar", "-xvf", "ffmpeg-release-static.tar.xz"], check=True)
-            # Move the binary to the project root directory
-            subprocess.run(["mv", "ffmpeg-*/ffmpeg", "./ffmpeg"], check=True)
-            subprocess.run(["mv", "ffmpeg-*/ffprobe", "./ffprobe"], check=True)
+            subprocess.run(["tar", "-xf", "ffmpeg-release-static.tar.xz"], check=True)
+
+            # Find the exact folder name that was extracted
+            extracted_folders = [f for f in os.listdir('.') if f.startswith('ffmpeg') and os.path.isdir(f)]
+            if not extracted_folders:
+                raise FileNotFoundError("No folder matching 'ffmpeg-*' was found after extraction.")
+
+            # Move the ffmpeg and ffprobe binaries
+            ffmpeg_folder = extracted_folders[0]
+            subprocess.run(["mv", f"{ffmpeg_folder}/ffmpeg", "./ffmpeg"], check=True)
+            subprocess.run(["mv", f"{ffmpeg_folder}/ffprobe", "./ffprobe"], check=True)
         except subprocess.CalledProcessError as e:
             print(f"Error during ffmpeg download/extraction: {e}")
+            return
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
             return
         # Clean up the unnecessary files
         subprocess.run(["rm", "-rf", "ffmpeg-*"])
@@ -35,13 +45,9 @@ download_ffmpeg()
 
 # Telegram bot setup
 TOKEN = os.getenv('BOT_TOKEN')
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-PORT = int(os.getenv('PORT', 8000))  # Default to 8000 if not set
 
 if not TOKEN:
     raise ValueError("Error: BOT_TOKEN is not set")
-if not WEBHOOK_URL:
-    raise ValueError("Error: WEBHOOK_URL is not set")
 
 # Function to download video using yt-dlp with local ffmpeg binary
 def download_video(url):
@@ -97,7 +103,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text("Error: Unable to download the video. The URL may not be supported.")
 
 def main() -> None:
-    # Create the application with polling (can switch to webhook if needed)
+    # Create the application with polling
     application = ApplicationBuilder().token(TOKEN).build()
 
     # Register command
@@ -105,7 +111,7 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # Start the bot
-    application.run_polling(port=PORT)
+    application.run_polling()  # No port argument here
 
 if __name__ == '__main__':
     main()
