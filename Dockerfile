@@ -1,10 +1,9 @@
-# Base image
+# Use Python slim as a base image
 FROM python:3.9-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     ffmpeg \
-    wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -17,11 +16,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
-# Expose port for health checks (optional)
-EXPOSE 8000
-
-# Set environment variables
+# Set environment variable for Telegram bot token
 ENV BOT_TOKEN=your-telegram-bot-token-here
 
-# Run the application
-CMD ["python", "app.py"]
+# Run both the bot and health check
+CMD ["sh", "-c", "python app.py & python health.py"]
