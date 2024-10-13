@@ -8,4 +8,5 @@ Flask[async]
 nest_asyncio
 yt-dlp
 tqdm==4.62.3
+telebot
 
