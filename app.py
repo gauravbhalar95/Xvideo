@@ -1,59 +1,43 @@
 import os
-import subprocess
 import yt_dlp as youtube_dl
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-from flask import Flask, request
-import logging
 import nest_asyncio
+import subprocess
 
-# Apply the patch for nested event loops (needed for async frameworks like Flask)
+# Apply the patch for nested event loops
 nest_asyncio.apply()
 
-# Initialize Flask app
-app = Flask(__name__)
+# Function to download ffmpeg during runtime if it's not already available
+def install_ffmpeg():
+    if not os.path.exists('./ffmpeg'):
+        print("Installing ffmpeg...")
+        subprocess.run([
+            'apt-get', 'update'
+        ])
+        subprocess.run([
+            'apt-get', 'install', '-y', 'ffmpeg'
+        ], check=True)
+        print("ffmpeg installed successfully.")
+    else:
+        print("ffmpeg already installed.")
 
-# Function to download ffmpeg binary during runtime
-def download_ffmpeg():
-    if not os.path.exists('./ffmpeg'):  # Check if ffmpeg is already downloaded
-        print("Downloading ffmpeg...")
-        # Download the static ffmpeg binary from a reliable source
-        try:
-            subprocess.run([
-                "wget",
-                "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-i686-static.tar.xz",
-                "-O", "ffmpeg-release-static.tar.xz"
-            ], check=True)  # Raise an error if the download fails
-            # Extract the ffmpeg binary
-            subprocess.run(["tar", "-xvf", "ffmpeg-release-static.tar.xz"], check=True)
-            # Move the binary to the project root directory
-            subprocess.run(["mv", "ffmpeg-*/ffmpeg", "./ffmpeg"], check=True)
-        except subprocess.CalledProcessError as e:
-            print(f"Error during ffmpeg download/extraction: {e}")
-            return
-        # Clean up the unnecessary files
-        subprocess.run(["rm", "-rf", "ffmpeg-*"])
-
-# Download ffmpeg at runtime
-download_ffmpeg()
+# Install ffmpeg
+install_ffmpeg()
 
 # Telegram bot setup
 TOKEN = os.getenv('BOT_TOKEN')
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-PORT = int(os.getenv('PORT', 8000))  # Heroku provides this
 
 if not TOKEN:
     raise ValueError("Error: BOT_TOKEN is not set")
-if not WEBHOOK_URL:
-    raise ValueError("Error: WEBHOOK_URL is not set")
 
-# Function to download video using yt-dlp with local ffmpeg binary
+# Function to download video using yt-dlp
 def download_video(url):
     ydl_opts = {
         'format': 'best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'quiet': True,
-        'ffmpeg_location': './ffmpeg',
+        'ffmpeg_location': './ffmpeg',  # Specify local ffmpeg binary
         'retries': 3,
         'continuedl': True,
         'noplaylist': True,
@@ -99,20 +83,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     else:
         await update.message.reply_text("Error: Unable to download the video. The URL may not be supported.")
 
-# Main bot application
-application = ApplicationBuilder().token(TOKEN).build()
+# Main function to run the bot
+def main() -> None:
+    # Create the bot application
+    application = ApplicationBuilder().token(TOKEN).build()
 
-# Register command and message handlers
-application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # Register commands and message handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# Set webhook endpoint
-@app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.process_update(update)
-    return "ok"
+    # Start the bot with polling
+    application.run_polling()
 
-# Flask will listen for requests on the specified port
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=PORT)
+    main()
