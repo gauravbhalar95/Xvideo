@@ -44,6 +44,17 @@ def download_video(url):
     except Exception as e:
         return None, None, None
 
+# Function to process video using FFmpeg
+def process_video(input_path, output_path):
+    # Update this command to use the correct path to ffmpeg
+    command = ['/bin/ffmpeg', '-i', input_path, '-vcodec', 'libx264', '-acodec', 'aac', output_path]
+    try:
+        subprocess.run(command, check=True)
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Error processing video: {e}")
+        return False
+
 # Command /start to welcome the user
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Welcome! Send me a video link to download.")
@@ -57,9 +68,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     video_path, video_title, video_ext = download_video(url)
 
     if video_path and os.path.exists(video_path):
-        with open(video_path, 'rb') as video:
-            await update.message.reply_video(video, caption=f"Here is your video: {video_title}")
-        os.remove(video_path)  # Remove the file after sending
+        output_path = os.path.join('downloads', f"{video_title}_processed.{video_ext}")
+
+        # Process video with FFmpeg
+        if process_video(video_path, output_path):
+            with open(output_path, 'rb') as video:
+                await update.message.reply_video(video, caption=f"Here is your processed video: {video_title}")
+            os.remove(video_path)  # Remove the original file after sending
+            os.remove(output_path)  # Remove the processed file after sending
+        else:
+            await update.message.reply_text("Error: Unable to process the video.")
     else:
         await update.message.reply_text("Error: Unable to download the video. The URL may not be supported or invalid.")
 
@@ -80,7 +98,7 @@ def set_webhook() -> str:
 def main() -> None:
     # Create the bot application
     application = ApplicationBuilder().token(TOKEN).build()
-    
+
     # Register commands and message handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
