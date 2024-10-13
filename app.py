@@ -16,7 +16,7 @@ def download_ffmpeg():
         try:
             subprocess.run([
                 "wget",
-                "https://drive.google.com/drive/folders/1Lv03z0vBvhDxCJfp8DTuVlB8ks3EexRv",
+                "https://drive.google.com/file/d/1LwZQzGDuOZSUwAJNX7ulBMITz0H7NPNU/view?usp=drivesdk",
                 "-O", "ffmpeg-release-static.tar.xz"
             ], check=True)  # Raise an error if the download fails
             # Extract the ffmpeg binary
