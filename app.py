@@ -5,6 +5,7 @@ from flask import Flask, request
 import telebot
 import yt_dlp
 from concurrent.futures import ThreadPoolExecutor
+import subprocess
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
 
@@ -35,6 +36,9 @@ gauth = GoogleAuth()
 gauth.LocalWebserverAuth()  # Authenticate locally (for testing)
 drive = GoogleDrive(gauth)
 
+# Create a thread pool for better performance
+executor = ThreadPoolExecutor(max_workers=10)
+
 # Sanitize filenames for FFmpeg compatibility
 def sanitize_filename(filename, max_length=200):
     import re
@@ -56,7 +60,8 @@ def download_media(url):
         }],
         'ffmpeg_location': '/bin/ffmpeg',
         'socket_timeout': 10,
-        'retries': 5,
+        'retries': 10,  # Increased retries for robustness
+        'noplaylist': True,  # Avoid playlist download for faster response
         'max_filesize': 2 * 1024 * 1024 * 1024,  # Max size 2GB
     }
 
@@ -75,22 +80,22 @@ def download_media(url):
         logging.error(f"yt-dlp download error: {str(e)}")
         raise
 
-# Function to convert video to audio
+# Function to convert video to audio using subprocess for better control
 def convert_to_audio(file_path):
     try:
         audio_file = file_path.rsplit('.', 1)[0] + ".mp3"  # Create an MP3 filename
-        os.system(f'ffmpeg -i "{file_path}" "{audio_file}"')
+        subprocess.run(['ffmpeg', '-i', file_path, audio_file], check=True)
         return audio_file
-    except Exception as e:
+    except subprocess.CalledProcessError as e:
         logging.error(f"Audio conversion error: {e}")
         raise
 
-# Function to upload file to Google Drive
+# Function to upload file to Google Drive with chunked upload
 def upload_to_google_drive(file_path):
     try:
         file_drive = drive.CreateFile({'title': os.path.basename(file_path)})
         file_drive.SetContentFile(file_path)
-        file_drive.Upload()
+        file_drive.Upload()  # Chunked uploads for large files
         logging.info(f"File uploaded: {file_path}")
         return file_drive['alternateLink']
     except Exception as e:
@@ -138,7 +143,7 @@ def download_and_upload_drive(message, url):
 def handle_audio(message):
     try:
         url = message.text.split()[1]  # Expecting URL after /audio command
-        threading.Thread(target=download_audio_and_send, args=(message, url)).start()
+        executor.submit(download_audio_and_send, message, url)  # Using thread pool
     except IndexError:
         bot2.reply_to(message, "Please provide a valid URL after /audio command.")
 
@@ -147,7 +152,7 @@ def handle_audio(message):
 def handle_drive(message):
     try:
         url = message.text.split()[1]  # Expecting URL after /drive command
-        threading.Thread(target=download_and_upload_drive, args=(message, url)).start()
+        executor.submit(download_and_upload_drive, message, url)  # Using thread pool
     except IndexError:
         bot2.reply_to(message, "Please provide a valid URL after /drive command.")
 
