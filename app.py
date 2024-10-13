@@ -8,21 +8,22 @@ import nest_asyncio
 # Apply the patch for nested event loops
 nest_asyncio.apply()
 
-# Function to download ffmpeg binary during runtime
+# Function to download ffmpeg binary during runtime from a reliable source
 def download_ffmpeg():
     if not os.path.exists('./ffmpeg'):  # Check if ffmpeg is already downloaded
         print("Downloading ffmpeg...")
-        # Download the static ffmpeg binary from Google Drive
         try:
+            # Download the static ffmpeg binary from a reliable source
             subprocess.run([
                 "wget",
-                "https://drive.google.com/file/d/1LwZQzGDuOZSUwAJNX7ulBMITz0H7NPNU/view?usp=drivesdk",
+                "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-i686-static.tar.xz",
                 "-O", "ffmpeg-release-static.tar.xz"
             ], check=True)  # Raise an error if the download fails
             # Extract the ffmpeg binary
             subprocess.run(["tar", "-xvf", "ffmpeg-release-static.tar.xz"], check=True)
             # Move the binary to the project root directory
             subprocess.run(["mv", "ffmpeg-*/ffmpeg", "./ffmpeg"], check=True)
+            subprocess.run(["mv", "ffmpeg-*/ffprobe", "./ffprobe"], check=True)
         except subprocess.CalledProcessError as e:
             print(f"Error during ffmpeg download/extraction: {e}")
             return
@@ -35,7 +36,7 @@ download_ffmpeg()
 # Telegram bot setup
 TOKEN = os.getenv('BOT_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-PORT = int(os.getenv('PORT', 8000))  # Default to 8443 if not set
+PORT = int(os.getenv('PORT', 8000))  # Default to 8000 if not set
 
 if not TOKEN:
     raise ValueError("Error: BOT_TOKEN is not set")
@@ -60,7 +61,8 @@ def download_video(url):
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
-            file_path = os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
+            ext = info_dict.get('ext', 'mp4')  # Default to mp4 if ext is missing
+            file_path = os.path.join('downloads', f"{info_dict['title']}.{ext}")
             return file_path, info_dict['title']
     except Exception as e:
         print(f"Error downloading video: {e}")
@@ -95,7 +97,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text("Error: Unable to download the video. The URL may not be supported.")
 
 def main() -> None:
-    # Create the application with webhook
+    # Create the application with polling (can switch to webhook if needed)
     application = ApplicationBuilder().token(TOKEN).build()
 
     # Register command
@@ -103,7 +105,7 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # Start the bot
-    application.run_polling()
+    application.run_polling(port=PORT)
 
 if __name__ == '__main__':
     main()
