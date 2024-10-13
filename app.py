@@ -1,5 +1,4 @@
 import os
-import subprocess
 import yt_dlp as youtube_dl
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
@@ -8,17 +7,11 @@ import nest_asyncio
 # Apply the patch for nested event loops
 nest_asyncio.apply()
 
-# Path to the static ffmpeg binary
-FFMPEG_PATH = '/bin/ffmpeg'  # Update this path based on your environment
-
 # Telegram bot setup
 TOKEN = os.getenv('BOT_TOKEN')
 
 if not TOKEN:
     raise ValueError("Error: BOT_TOKEN is not set")
-
-# Compression quality
-CRF_VALUE = 18  # Lower value means better quality, range: 18-28
 
 # Function to download video using yt-dlp
 def download_video(url):
@@ -26,7 +19,6 @@ def download_video(url):
         'format': 'best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'quiet': True,
-        'ffmpeg_location': FFMPEG_PATH,  # Specify local ffmpeg binary
         'retries': 3,
         'continuedl': True,
         'noplaylist': True,
@@ -49,20 +41,6 @@ def download_video(url):
         print(f"Error downloading video: {e}")
         return None, None, None
 
-# Function to compress video using ffmpeg
-def compress_video(input_path):
-    video_title = os.path.splitext(os.path.basename(input_path))[0]
-    output_path = os.path.join('downloads', f"compressed_{video_title}.mp4")
-    command = [FFMPEG_PATH, '-i', input_path, '-vcodec', 'libx264', '-crf', str(CRF_VALUE), output_path]
-
-    try:
-        subprocess.run(command, check=True)
-        print(f"Video compressed to: {output_path}")  # Debugging output
-        return output_path
-    except subprocess.CalledProcessError as e:
-        print(f"Error during compression: {e}")
-        return None
-
 # Command /start to welcome the user
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Welcome! Send me a video link to download.")
@@ -80,22 +58,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         file_size = os.path.getsize(video_path)  # Get file size in bytes
         print(f"File size: {file_size} bytes")  # Debugging output
 
-        # Check if the file is larger than 100MB
-        if file_size > 100 * 1024 * 1024:  # 100MB limit
-            await update.message.reply_text(f"The video is larger than 100MB ({file_size / (1024 * 1024):.2f}MB). Compressing it...")
-
-            # Compress the video
-            video_compressed_path = compress_video(video_path)
-
-            # Check if compression was successful
-            if video_compressed_path and os.path.exists(video_compressed_path):
-                with open(video_compressed_path, 'rb') as video:
-                    await update.message.reply_video(video, caption=f"Here is your compressed video: {video_title}")
-                os.remove(video_compressed_path)  # Remove the compressed file after sending
-            else:
-                await update.message.reply_text("Error: Compression failed. Please try again later.")
+        # Check if the file size is acceptable (less than 2GB)
+        if file_size > 2 * 1024 * 1024 * 1024:  # 2GB limit
+            await update.message.reply_text(f"The video is larger than 2GB ({file_size / (1024 * 1024 * 1024):.2f}GB).")
         else:
-            await update.message.reply_text(f"The video size is acceptable ({file_size / (1024 * 1024):.2f}MB). Sending it...")
+            await update.message.reply_text(f"The video size is acceptable ({file_size / (1024 * 1024 * 1024):.2f}GB). Sending it...")
 
             try:
                 with open(video_path, 'rb') as video:
