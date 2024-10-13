@@ -3,12 +3,23 @@ import yt_dlp as youtube_dl
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
+import subprocess
 
 # Apply the patch for nested event loops
 nest_asyncio.apply()
 
-# Path to the static ffmpeg binary
-FFMPEG_PATH = './ffmpeg'
+# Function to download and install ffmpeg if not already installed
+def install_ffmpeg():
+    if not os.path.exists('./ffmpeg'):
+        print("Installing ffmpeg...")
+        subprocess.run(['apt-get', 'update'])
+        subprocess.run(['apt-get', 'install', '-y', 'ffmpeg'], check=True)
+        print("ffmpeg installed successfully.")
+    else:
+        print("ffmpeg is already installed.")
+
+# Call install_ffmpeg to ensure ffmpeg is available
+install_ffmpeg()
 
 # Telegram bot setup
 TOKEN = os.getenv('BOT_TOKEN')
@@ -22,7 +33,7 @@ def download_video(url):
         'format': 'best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'quiet': True,
-        'ffmpeg_location': FFMPEG_PATH,  # Specify local ffmpeg binary
+        'ffmpeg_location': '/usr/bin/ffmpeg',  # Use the installed ffmpeg binary
         'retries': 3,
         'continuedl': True,
         'noplaylist': True,
@@ -77,7 +88,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Start the bot with polling
+    # Start the bot with polling (no port needed)
     application.run_polling()
 
 if __name__ == '__main__':
