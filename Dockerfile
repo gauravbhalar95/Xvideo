@@ -1,33 +1,27 @@
-# Use an official Python runtime as a parent image
-FROM python:3.12-slim
+# Base image
+FROM python:3.9-slim
 
-# Set environment variables for Python
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
 
-# Set the working directory in the container
+# Set working directory
 WORKDIR /app
 
-# Install FFmpeg
-RUN apt-get update && \
-    apt-get install -y wget && \
-    wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-i686-static.tar.xz && \
-    tar -xvf ffmpeg-release-i686-static.tar.xz && \
-    mv ffmpeg-*/ffmpeg /usr/local/bin/ffmpeg && \
-    rm -rf ffmpeg-*
-
-# Install any necessary system dependencies
-RUN apt-get update && apt-get install -y libmagic1 && apt-get clean
-
-# Copy the current directory contents into the container at /app
-COPY . /app
-
-# Install any needed Python packages specified in requirements.txt
-COPY requirements.txt /app/
+# Copy requirements and install dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose the port
+# Copy the rest of the application code
+COPY . .
+
+# Expose port for health checks (optional)
 EXPOSE 8000
 
-# Run the bot
+# Set environment variables
+ENV BOT_TOKEN=your-telegram-bot-token-here
+
+# Run the application
 CMD ["python", "app.py"]
