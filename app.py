@@ -53,31 +53,12 @@ def download_video(url):
 def compress_video(input_path):
     video_title = os.path.splitext(os.path.basename(input_path))[0]
     output_path = os.path.join('downloads', f"compressed_{video_title}.mp4")
-    
-    # Adjust the command to include preset and threads for faster processing
-    command = [
-        FFMPEG_PATH, 
-        '-i', input_path, 
-        '-vcodec', 'libx264', 
-        '-crf', str(CRF_VALUE), 
-        '-preset', 'fast', 
-        '-threads', 'auto', 
-        output_path
-    ]
+    command = [FFMPEG_PATH, '-i', input_path, '-vcodec', 'libx264', '-crf', str(CRF_VALUE), output_path]
 
     try:
-        print(f"Running ffmpeg command: {' '.join(command)}")  # Debugging: show the command
-        result = subprocess.run(command, capture_output=True, text=True)
-        print(f"ffmpeg output: {result.stdout}")  # Debugging: print ffmpeg's output
-        print(f"ffmpeg error: {result.stderr}")   # Debugging: print ffmpeg's error output
-
-        if result.returncode == 0:
-            print(f"Video compressed to: {output_path}")  # Debugging output
-            return output_path
-        else:
-            print(f"ffmpeg failed with return code {result.returncode}")
-            return None
-
+        subprocess.run(command, check=True)
+        print(f"Video compressed to: {output_path}")  # Debugging output
+        return output_path
     except subprocess.CalledProcessError as e:
         print(f"Error during compression: {e}")
         return None
@@ -115,8 +96,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await update.message.reply_text("Error: Compression failed. Please try again later.")
         else:
             await update.message.reply_text(f"The video size is acceptable ({file_size / (1024 * 1024):.2f}MB). Sending it...")
-            with open(video_path, 'rb') as video:
-                await update.message.reply_video(video, caption=f"Here is your video: {video_title}")
+            try:
+                with open(video_path, 'rb') as video:
+                    await update.message.reply_video(video, caption=f"Here is your video: {video_title}")
+            except Exception as e:
+                await update.message.reply_text(f"Error sending video: {str(e)}")
+                print(f"Error: {e}")  # Debugging: print error message
 
         os.remove(video_path)  # Remove the file after sending
     else:
