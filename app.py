@@ -35,7 +35,7 @@ download_ffmpeg()
 # Telegram bot setup
 TOKEN = os.getenv('BOT_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-PORT = int(os.getenv('PORT', 8443))  # Default to 8443 if not set
+PORT = int(os.getenv('PORT', 8000))  # Default to 8443 if not set
 
 if not TOKEN:
     raise ValueError("Error: BOT_TOKEN is not set")
