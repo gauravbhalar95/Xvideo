@@ -62,7 +62,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         file_size = os.path.getsize(video_path)  # Get file size in bytes
 
         # Check if the file is larger than 100MB
-        if file_size > 1024 * 1024 * 1024:  # 100MB limit
+        if file_size > 100 * 1024 * 1024:  # 100MB limit
             await update.message.reply_text(f"The video is larger than 100MB. Compressing it...")
 
             # Create a path for the compressed video
@@ -76,13 +76,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 with open(video_compressed_path, 'rb') as video:
                     await update.message.reply_video(video, caption=f"Here is your compressed video: {video_title}")
                 os.remove(video_compressed_path)  # Remove the compressed file after sending
+            else:
+                await update.message.reply_text("Error: Compression failed.")
         else:
             with open(video_path, 'rb') as video:
                 await update.message.reply_video(video, caption=f"Here is your video: {video_title}")
 
         os.remove(video_path)  # Remove the file after sending
     else:
-        await update.message.reply_text("Error: Unable to download the video. The URL may not be supported.")
+        await update.message.reply_text("Error: Unable to download the video. The URL may not be supported or invalid.")
 
 # Main function to run the bot
 def main() -> None:
