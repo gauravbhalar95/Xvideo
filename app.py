@@ -1,110 +1,176 @@
 import os
-import subprocess
-import yt_dlp as youtube_dl
+import logging
+import threading
 from flask import Flask, request
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-import nest_asyncio
+import telebot
+import yt_dlp
+from concurrent.futures import ThreadPoolExecutor
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
 
-# Apply the patch for nested event loops
-nest_asyncio.apply()
+# Load API tokens and channel IDs from environment variables
+API_TOKEN_2 = os.getenv('API_TOKEN_2')
+CHANNEL_ID = os.getenv('CHANNEL_ID')  # Your Channel ID like '@YourChannel'
 
-# Initialize Flask app
-app = Flask(__name__)
+# Initialize the bot with debug mode enabled
+bot2 = telebot.TeleBot(API_TOKEN_2, parse_mode='HTML')
+telebot.logger.setLevel(logging.DEBUG)
 
-# Telegram bot setup
-TOKEN = os.getenv('BOT_TOKEN')
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Make sure to set this in your environment
+# Directory to save downloaded files
+output_dir = 'downloads/'
+cookies_file = 'cookies.txt'  # YouTube cookies file
 
-if not TOKEN or not WEBHOOK_URL:
-    raise ValueError("Error: BOT_TOKEN and WEBHOOK_URL must be set")
+# Ensure the downloads directory exists
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
-# Function to download video using yt-dlp
-def download_video(url):
+# Enable debug logging
+logging.basicConfig(level=logging.DEBUG)
+
+# Ensure yt-dlp is updated
+os.system('yt-dlp -U')
+
+# Google Drive authentication setup
+gauth = GoogleAuth()
+gauth.LocalWebserverAuth()  # Authenticate locally (for testing)
+drive = GoogleDrive(gauth)
+
+# Sanitize filenames for FFmpeg compatibility
+def sanitize_filename(filename, max_length=200):
+    import re
+    filename = re.sub(r'[\\/*?:"<>|\' ]', "_", filename)  # Replaces special characters
+    return filename.strip()[:max_length]
+
+# Function to download media from various platforms
+def download_media(url):
+    logging.debug(f"Attempting to download media from URL: {url}")
+
     ydl_opts = {
-        'format': 'best',
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'quiet': False,
-        'retries': 3,
-        'continuedl': True,
-        'noplaylist': True,
+        'format': 'bestvideo+bestaudio/best',  # Download best video and audio
+        'outtmpl': f'{output_dir}%(title)s.%(ext)s',
+        'merge_output_format': 'mp4',
+        'cookiefile': cookies_file,
+        'postprocessors': [{
+            'key': 'FFmpegVideoConvertor',
+            'preferedformat': 'mp4',
+        }],
+        'ffmpeg_location': '/bin/ffmpeg',
+        'socket_timeout': 10,
+        'retries': 5,
+        'max_filesize': 2 * 1024 * 1024 * 1024,  # Max size 2GB
     }
 
-    if not os.path.exists('downloads'):
-        os.makedirs('downloads')
-
     try:
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
-            if info_dict and 'title' in info_dict:
-                file_path = os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
-                return file_path, info_dict['title'], info_dict['ext']
-            else:
-                return None, None, None
+            file_path = ydl.prepare_filename(info_dict)
+
+        # Sanitize filename to avoid errors
+        sanitized_file_path = sanitize_filename(file_path)
+        os.rename(file_path, sanitized_file_path)
+
+        return sanitized_file_path
+
     except Exception as e:
-        return None, None, None
+        logging.error(f"yt-dlp download error: {str(e)}")
+        raise
 
-# Function to process video using FFmpeg
-def process_video(input_path, output_path):
-    # Update this command to use the correct path to ffmpeg
-    command = ['/bin/ffmpeg', '-i', input_path, '-vcodec', 'libx264', '-acodec', 'aac', output_path]
+# Function to convert video to audio
+def convert_to_audio(file_path):
     try:
-        subprocess.run(command, check=True)
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"Error processing video: {e}")
-        return False
+        audio_file = file_path.rsplit('.', 1)[0] + ".mp3"  # Create an MP3 filename
+        os.system(f'ffmpeg -i "{file_path}" "{audio_file}"')
+        return audio_file
+    except Exception as e:
+        logging.error(f"Audio conversion error: {e}")
+        raise
 
-# Command /start to welcome the user
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Welcome! Send me a video link to download.")
+# Function to upload file to Google Drive
+def upload_to_google_drive(file_path):
+    try:
+        file_drive = drive.CreateFile({'title': os.path.basename(file_path)})
+        file_drive.SetContentFile(file_path)
+        file_drive.Upload()
+        logging.info(f"File uploaded: {file_path}")
+        return file_drive['alternateLink']
+    except Exception as e:
+        logging.error(f"Google Drive upload error: {e}")
+        raise
 
-# Handle pasted URLs
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    url = update.message.text.strip()  # Get the URL sent by the user
-    await update.message.reply_text("Downloading video...")
+# Function to download, convert to audio, and send the file
+def download_audio_and_send(message, url):
+    try:
+        bot2.reply_to(message, "Downloading and converting to audio...")
+        file_path = download_media(url)
 
-    # Call the download_video function
-    video_path, video_title, video_ext = download_video(url)
+        # Convert to audio
+        audio_file = convert_to_audio(file_path)
 
-    if video_path and os.path.exists(video_path):
-        output_path = os.path.join('downloads', f"{video_title}_processed.{video_ext}")
+        # Send audio file
+        with open(audio_file, 'rb') as audio:
+            bot2.send_audio(message.chat.id, audio)
 
-        # Process video with FFmpeg
-        if process_video(video_path, output_path):
-            with open(output_path, 'rb') as video:
-                await update.message.reply_video(video, caption=f"Here is your processed video: {video_title}")
-            os.remove(video_path)  # Remove the original file after sending
-            os.remove(output_path)  # Remove the processed file after sending
-        else:
-            await update.message.reply_text("Error: Unable to process the video.")
-    else:
-        await update.message.reply_text("Error: Unable to download the video. The URL may not be supported or invalid.")
+        # Clean up
+        os.remove(file_path)
+        os.remove(audio_file)
 
-# Webhook endpoint for Telegram
-@app.route(f'/{TOKEN}', methods=['POST'])
-def webhook() -> str:
-    update = Update.de_json(request.get_json(force=True), app.bot)
-    app.dispatcher.process_update(update)
-    return 'ok'
+    except Exception as e:
+        bot2.reply_to(message, f"Failed to download and convert to audio. Error: {e}")
 
-# Set webhook route
-@app.route('/set_webhook', methods=['GET'])
-def set_webhook() -> str:
-    app.bot.setWebhook(WEBHOOK_URL)
-    return f'Webhook set to {WEBHOOK_URL}'
+# Function to download and upload to Google Drive
+def download_and_upload_drive(message, url):
+    try:
+        bot2.reply_to(message, "Downloading and uploading to Google Drive...")
+        file_path = download_media(url)
 
-# Main function to run the bot
-def main() -> None:
-    # Create the bot application
-    application = ApplicationBuilder().token(TOKEN).build()
+        # Upload to Google Drive
+        drive_link = upload_to_google_drive(file_path)
+        bot2.reply_to(message, f"File uploaded successfully: {drive_link}")
 
-    # Register commands and message handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        # Clean up
+        os.remove(file_path)
 
-    # Start the bot with the Flask app
-    application.run_polling()
+    except Exception as e:
+        bot2.reply_to(message, f"Failed to upload to Google Drive. Error: {e}")
 
-if __name__ == '__main__':
-    main()
+# Command handler for /audio
+@bot2.message_handler(commands=['audio'])
+def handle_audio(message):
+    try:
+        url = message.text.split()[1]  # Expecting URL after /audio command
+        threading.Thread(target=download_audio_and_send, args=(message, url)).start()
+    except IndexError:
+        bot2.reply_to(message, "Please provide a valid URL after /audio command.")
+
+# Command handler for /drive
+@bot2.message_handler(commands=['drive'])
+def handle_drive(message):
+    try:
+        url = message.text.split()[1]  # Expecting URL after /drive command
+        threading.Thread(target=download_and_upload_drive, args=(message, url)).start()
+    except IndexError:
+        bot2.reply_to(message, "Please provide a valid URL after /drive command.")
+
+# Flask app setup
+app = Flask(__name__)
+
+@app.route('/' + API_TOKEN_2, methods=['POST'])
+def getMessage_bot2():
+    bot2.process_new_updates([telebot.types.Update.de_json(request.stream.read().decode("utf-8"))])
+    return "!", 200
+
+@app.route('/')
+def webhook():
+    try:
+        bot2.remove_webhook()
+        bot2.set_webhook(url=os.getenv('WEBHOOK_URL') + '/' + API_TOKEN_2, timeout=60)
+        return "Webhook set", 200
+    except Exception as e:
+        logging.error(f"Error setting webhook: {str(e)}")
+        return "Error setting webhook", 500
+
+if __name__ == "__main__":
+    try:
+        app.run(host='0.0.0.0', port=8000, debug=True)
+    except Exception as e:
+        logging.error(f"Failed to start the server: {str(e)}")
