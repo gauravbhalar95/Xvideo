@@ -96,6 +96,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await update.message.reply_text("Error: Compression failed. Please try again later.")
         else:
             await update.message.reply_text(f"The video size is acceptable ({file_size / (1024 * 1024):.2f}MB). Sending it...")
+
             try:
                 with open(video_path, 'rb') as video:
                     await update.message.reply_video(video, caption=f"Here is your video: {video_title}")
