@@ -62,7 +62,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         file_size = os.path.getsize(video_path)  # Get file size in bytes
 
         # Check if the file is larger than 100MB
-        if file_size > 100 * 1024 * 1024:  # 100MB limit
+        if file_size > 1024 * 1024 * 1024:  # 100MB limit
             await update.message.reply_text(f"The video is larger than 100MB. Compressing it...")
 
             # Create a path for the compressed video
