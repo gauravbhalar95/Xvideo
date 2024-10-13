@@ -18,7 +18,7 @@ if not TOKEN:
     raise ValueError("Error: BOT_TOKEN is not set")
 
 # Compression quality
-CRF_VALUE = 28  # Lower value means better quality, range: 18-28
+CRF_VALUE = 18  # Lower value means better quality, range: 18-28
 
 # Function to download video using yt-dlp
 def download_video(url):
@@ -38,9 +38,13 @@ def download_video(url):
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
-            file_path = os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
-            print(f"Video downloaded to: {file_path}")  # Debugging output
-            return file_path, info_dict['title'], info_dict['ext']
+            if info_dict and 'title' in info_dict:
+                file_path = os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
+                print(f"Video downloaded to: {file_path}")  # Debugging output
+                return file_path, info_dict['title'], info_dict['ext']
+            else:
+                print("Error: No information retrieved from the video URL.")
+                return None, None, None
     except Exception as e:
         print(f"Error downloading video: {e}")
         return None, None, None
