@@ -27,7 +27,7 @@ COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Expose the port
-EXPOSE 8443
+EXPOSE 8000
 
 # Run the bot
-CMD ["python", "bot.py"]
+CMD ["python", "app.py"]
