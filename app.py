@@ -4,7 +4,6 @@ import yt_dlp as youtube_dl
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
-import asyncio
 
 # Apply the patch for nested event loops
 nest_asyncio.apply()
@@ -20,9 +19,6 @@ if not TOKEN:
 
 # Compression quality
 CRF_VALUE = 18  # Lower value means better quality, range: 18-28
-
-# Store download history
-download_history = []
 
 # Function to download video using yt-dlp
 def download_video(url):
@@ -71,14 +67,6 @@ def compress_video(input_path):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Welcome! Send me a video link to download.")
 
-# Function to display download history
-async def show_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not download_history:
-        await update.message.reply_text("No download history found.")
-    else:
-        history_message = "Download History:\n" + "\n".join(download_history)
-        await update.message.reply_text(history_message)
-
 # Handle pasted URLs
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     url = update.message.text.strip()  # Get the URL sent by the user
@@ -94,35 +82,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         # Check if the file is larger than 100MB
         if file_size > 100 * 1024 * 1024:  # 100MB limit
-            # Ask the user if they want to compress the video
             await update.message.reply_text(
                 f"The video is larger than 100MB ({file_size / (1024 * 1024):.2f}MB). "
-                "Would you like to compress it? Reply with 'Yes' or 'No'."
+                "Compressing the video..."
             )
+            # Automatically compress the video
+            video_compressed_path = compress_video(video_path)
 
-            # Wait for the user's response
-            response = await context.bot.wait_for_message(chat_id=update.effective_chat.id, timeout=60)
-            if response and response.text.strip().lower() == 'yes':
-                await update.message.reply_text("Compressing the video...")
-                # Compress the video
-                video_compressed_path = compress_video(video_path)
-
-                # Check if compression was successful
-                if video_compressed_path and os.path.exists(video_compressed_path):
-                    await update.message.reply_video(video_compressed_path, caption=f"Here is your compressed video: {video_title}")
-                    os.remove(video_compressed_path)  # Remove the compressed file after sending
-                else:
-                    await update.message.reply_text("Error: Compression failed. Please try again later.")
+            # Check if compression was successful
+            if video_compressed_path and os.path.exists(video_compressed_path):
+                await update.message.reply_video(video_compressed_path, caption=f"Here is your compressed video: {video_title}")
+                os.remove(video_compressed_path)  # Remove the compressed file after sending
             else:
-                await update.message.reply_text("Sending the video without compression...")
-                await update.message.reply_video(video_path, caption=f"Here is your video: {video_title}")
-
+                await update.message.reply_text("Error: Compression failed. Please try again later.")
         else:
             await update.message.reply_text(f"The video size is acceptable ({file_size / (1024 * 1024):.2f}MB). Sending it...")
             await update.message.reply_video(video_path, caption=f"Here is your video: {video_title}")
-
-        # Add to download history
-        download_history.append(video_title)
 
         os.remove(video_path)  # Remove the file after sending
     else:
@@ -135,7 +110,6 @@ def main() -> None:
 
     # Register commands and message handlers
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("history", show_history))  # Add history command
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # Start the bot with polling
