@@ -9,7 +9,7 @@ import nest_asyncio
 nest_asyncio.apply()
 
 # Path to the static ffmpeg binary
-FFMPEG_PATH = './ffmpeg'
+FFMPEG_PATH = '/bin/ffmpeg'  # Set the correct path for ffmpeg
 
 # Telegram bot setup
 TOKEN = os.getenv('BOT_TOKEN')
@@ -44,7 +44,7 @@ def download_video(url):
 # Function to compress video using ffmpeg
 def compress_video(input_path, output_path):
     command = [FFMPEG_PATH, '-i', input_path, '-vcodec', 'libx264', '-crf', '28', output_path]
-    subprocess.run(command)
+    subprocess.run(command, check=True)
 
 # Command /start to welcome the user
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -61,24 +61,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if video_path and os.path.exists(video_path):
         file_size = os.path.getsize(video_path)  # Get file size in bytes
 
-        # If file size exceeds 100MB, send it as a document
-        if file_size > 1000 * 1024 * 1024:  # 100MB limit
-            with open(video_path, 'rb') as video:
-                await update.message.reply_document(video, caption=f"Here is your video: {video_title} (sent as a document)")
-        
-        # If file size is below 100MB, compress and send it
-        else:
+        # Check if the file is larger than 100MB
+        if file_size > 100 * 1024 * 1024:  # 100MB limit
+            await update.message.reply_text(f"The video is larger than 100MB. Compressing it...")
+
+            # Create a path for the compressed video
             video_compressed_path = os.path.join('downloads', f"compressed_{video_title}.mp4")
+            
+            # Compress the video
             compress_video(video_path, video_compressed_path)
 
-            # Replace video_path with video_compressed_path for sending
+            # Replace video_path with video_compressed_path
             if os.path.exists(video_compressed_path):
                 with open(video_compressed_path, 'rb') as video:
                     await update.message.reply_video(video, caption=f"Here is your compressed video: {video_title}")
-
                 os.remove(video_compressed_path)  # Remove the compressed file after sending
-            else:
-                await update.message.reply_text("Compression failed, sending original video.")
+        else:
+            with open(video_path, 'rb') as video:
+                await update.message.reply_video(video, caption=f"Here is your video: {video_title}")
 
         os.remove(video_path)  # Remove the file after sending
     else:
