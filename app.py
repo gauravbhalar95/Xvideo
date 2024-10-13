@@ -56,9 +56,18 @@ def compress_video(input_path):
     command = [FFMPEG_PATH, '-i', input_path, '-vcodec', 'libx264', '-crf', str(CRF_VALUE), output_path]
 
     try:
-        subprocess.run(command, check=True)
-        print(f"Video compressed to: {output_path}")  # Debugging output
-        return output_path
+        print(f"Running ffmpeg command: {' '.join(command)}")  # Debugging: show the command
+        result = subprocess.run(command, capture_output=True, text=True)
+        print(f"ffmpeg output: {result.stdout}")  # Debugging: print ffmpeg's output
+        print(f"ffmpeg error: {result.stderr}")   # Debugging: print ffmpeg's error output
+
+        if result.returncode == 0:
+            print(f"Video compressed to: {output_path}")  # Debugging output
+            return output_path
+        else:
+            print(f"ffmpeg failed with return code {result.returncode}")
+            return None
+
     except subprocess.CalledProcessError as e:
         print(f"Error during compression: {e}")
         return None
@@ -82,22 +91,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         # Check if the file is larger than 100MB
         if file_size > 100 * 1024 * 1024:  # 100MB limit
-            await update.message.reply_text(
-                f"The video is larger than 100MB ({file_size / (1024 * 1024):.2f}MB). "
-                "Compressing the video..."
-            )
-            # Automatically compress the video
+            await update.message.reply_text(f"The video is larger than 100MB ({file_size / (1024 * 1024):.2f}MB). Compressing it...")
+
+            # Compress the video
             video_compressed_path = compress_video(video_path)
 
             # Check if compression was successful
             if video_compressed_path and os.path.exists(video_compressed_path):
-                await update.message.reply_video(video_compressed_path, caption=f"Here is your compressed video: {video_title}")
+                with open(video_compressed_path, 'rb') as video:
+                    await update.message.reply_video(video, caption=f"Here is your compressed video: {video_title}")
                 os.remove(video_compressed_path)  # Remove the compressed file after sending
             else:
                 await update.message.reply_text("Error: Compression failed. Please try again later.")
         else:
             await update.message.reply_text(f"The video size is acceptable ({file_size / (1024 * 1024):.2f}MB). Sending it...")
-            await update.message.reply_video(video_path, caption=f"Here is your video: {video_title}")
+            with open(video_path, 'rb') as video:
+                await update.message.reply_video(video, caption=f"Here is your video: {video_title}")
 
         os.remove(video_path)  # Remove the file after sending
     else:
