@@ -1,6 +1,7 @@
 import os
-import subprocess
+import requests
 import yt_dlp as youtube_dl
+from bs4 import BeautifulSoup
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
@@ -35,7 +36,6 @@ def download_video(url):
         'merge_output_format': 'mp4',
     }
 
-    # Create downloads directory if it doesn't exist
     os.makedirs('downloads', exist_ok=True)
 
     try:
@@ -43,46 +43,68 @@ def download_video(url):
             info_dict = ydl.extract_info(url, download=True)
             if info_dict and 'title' in info_dict:
                 file_path = os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
-                return file_path, info_dict['title'], info_dict['ext']
+                return file_path, info_dict['title']
             else:
-                return None, None, None
+                return None, None
     except Exception as e:
         print(f"Error downloading video: {e}")
-        return None, None, None
+        return None, None
 
-# Function to process video using FFmpeg
-def process_video(input_path, output_path):
-    command = ['/bin/ffmpeg', '-i', input_path, '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
-               '-c:a', 'aac', '-b:a', '192k', output_path]
-    try:
-        subprocess.run(command, check=True)
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"Error processing video: {e}")
-        return False
+# Function to fetch video links from xVideos
+def fetch_xvideos_links(search_query):
+    search_url = f"https://www.xvideos.com/search?q={search_query}"
+    response = requests.get(search_url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    links = []
+    for video in soup.find_all('a', class_='video-thumb'):
+        video_url = video.get('href')
+        if video_url:
+            links.append('https://www.xvideos.com' + video_url)
+    
+    return links
+
+# Function to fetch video links from xHamster
+def fetch_xhamster_links(search_query):
+    search_url = f"https://xhamster.com/search.php?query={search_query}"
+    response = requests.get(search_url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    links = []
+    for video in soup.find_all('a', class_='video-title'):
+        video_url = video.get('href')
+        if video_url:
+            links.append(video_url)
+
+    return links
 
 # Command /start to welcome the user
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Welcome! Send me a video link to download.")
+    await update.message.reply_text("Welcome! Send me a search query to find videos.")
 
-# Handle pasted URLs
+# Handle pasted URLs or search queries
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    url = update.message.text.strip()
-    await update.message.reply_text("Downloading video...")
+    search_query = update.message.text.strip()
+    await update.message.reply_text("Fetching video links...")
 
-    video_path, video_title, video_ext = download_video(url)
+    xvideos_links = fetch_xvideos_links(search_query)
+    xhamster_links = fetch_xhamster_links(search_query)
+    
+    all_links = xvideos_links + xhamster_links
+
+    if not all_links:
+        await update.message.reply_text("No videos found for the given query.")
+        return
+
+    # For simplicity, let's just download the first video found
+    video_path, video_title = download_video(all_links[0])
 
     if video_path and os.path.exists(video_path):
-        output_path = os.path.join('downloads', f"{video_title}_processed.mp4")
-        if process_video(video_path, output_path):
-            with open(output_path, 'rb') as video:
-                await update.message.reply_video(video, caption=f"Here is your processed video: {video_title}")
-            os.remove(video_path)  # Remove the original downloaded video
-            os.remove(output_path)  # Remove the processed video after sending
-        else:
-            await update.message.reply_text("Error: Unable to process the video.")
+        with open(video_path, 'rb') as video:
+            await update.message.reply_video(video, caption=f"Here is your video: {video_title}")
+        os.remove(video_path)  # Remove the video after sending
     else:
-        await update.message.reply_text("Error: Unable to download the video. The URL may not be supported or invalid.")
+        await update.message.reply_text("Error: Unable to download the video.")
 
 # Webhook endpoint for Telegram
 @app.route(f'/{TOKEN}', methods=['POST'])
