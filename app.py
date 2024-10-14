@@ -5,11 +5,12 @@ from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
+from health import app as health_app  # Import the health check app
 
 # Apply the patch for nested event loops
 nest_asyncio.apply()
 
-# Initialize Flask app
+# Initialize Flask app for the Telegram bot
 app = Flask(__name__)
 
 # Telegram bot setup
@@ -48,7 +49,7 @@ def download_video(url):
 
 # Function to process video using FFmpeg
 def process_video(input_path, output_path):
-    command = ['ffmpeg', '-i', input_path, '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', 
+    command = ['/bin/ffmpeg', '-i', input_path, '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
                '-c:a', 'aac', '-b:a', '192k', output_path]
     try:
         subprocess.run(command, check=True)
@@ -65,6 +66,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     url = update.message.text.strip()
     await update.message.reply_text("Downloading video...")
+
     video_path, video_title, video_ext = download_video(url)
 
     if video_path and os.path.exists(video_path):
@@ -92,17 +94,22 @@ def set_webhook() -> str:
     app.bot.setWebhook(WEBHOOK_URL)
     return f'Webhook set to {WEBHOOK_URL}'
 
-# Health check route
-@app.route('/')
-def health_check():
-    return "Healthy", 200
-
 # Main function to run the bot
 def main() -> None:
     application = ApplicationBuilder().token(TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Start the bot with the Flask app
     application.run_polling()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000)
+    # Run both the health check app and the bot app
+    import threading
+
+    # Start the health check app in a separate thread
+    health_thread = threading.Thread(target=health_app.run, kwargs={'host': '0.0.0.0', 'port': 8001})  # You can choose a different port for health checks
+    health_thread.start()
+
+    # Run the main bot application
+    main()
