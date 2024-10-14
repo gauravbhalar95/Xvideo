@@ -32,8 +32,8 @@ def download_video(url):
         'merge_output_format': 'mp4',
     }
 
-    if not os.path.exists('downloads'):
-        os.makedirs('downloads')
+    # Create downloads directory if it doesn't exist
+    os.makedirs('downloads', exist_ok=True)
 
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
@@ -74,8 +74,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if process_video(video_path, output_path):
             with open(output_path, 'rb') as video:
                 await update.message.reply_video(video, caption=f"Here is your processed video: {video_title}")
-            os.remove(video_path)
-            os.remove(output_path)
+            os.remove(video_path)  # Remove the original downloaded video
+            os.remove(output_path)  # Remove the processed video after sending
         else:
             await update.message.reply_text("Error: Unable to process the video.")
     else:
@@ -108,7 +108,7 @@ if __name__ == '__main__':
     import threading
 
     # Start the health check app in a separate thread
-    health_thread = threading.Thread(target=health_app.run, kwargs={'host': '0.0.0.0', 'port': 8001})  # You can choose a different port for health checks
+    health_thread = threading.Thread(target=health_app.run, kwargs={'host': '0.0.0.0', 'port': 8001})
     health_thread.start()
 
     # Run the main bot application
