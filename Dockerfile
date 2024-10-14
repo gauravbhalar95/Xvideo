@@ -33,4 +33,4 @@ COPY . .
 EXPOSE 8000  
 
 # Command to run the application
-CMD ["python", "app.py"]  # Replace 'your_script.py' with the main script of your application
+CMD ["python3", "app.py"] 
