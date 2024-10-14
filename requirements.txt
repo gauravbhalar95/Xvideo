@@ -10,4 +10,5 @@ yt-dlp
 tqdm==4.62.3
 telebot
 pydrive
+uvicorn==0.22.0
 
