@@ -5,12 +5,16 @@ from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
-import threading
+from health import app as health_app  # Import the health check app
+import logging
 
-# Apply the patch for nested event loops (required for Flask + Telegram integration)
+# Enable logging to debug issues
+logging.basicConfig(level=logging.DEBUG)
+
+# Apply the patch for nested event loops
 nest_asyncio.apply()
 
-# Initialize Flask app for both the Telegram bot and health check
+# Initialize Flask app for the Telegram bot
 app = Flask(__name__)
 
 # Telegram bot setup
@@ -58,10 +62,11 @@ def process_video(input_path, output_path):
         print(f"Error processing video: {e}")
         return False
 
-# Telegram bot handlers
+# Command /start to welcome the user
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Welcome! Send me a video link to download.")
 
+# Handle pasted URLs
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     url = update.message.text.strip()
     await update.message.reply_text("Downloading video...")
@@ -90,30 +95,32 @@ def webhook() -> str:
 # Set webhook route
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook() -> str:
-    app.bot.setWebhook(WEBHOOK_URL)
+    # Manually set the webhook for Telegram
+    application = ApplicationBuilder().token(TOKEN).build()
+    application.bot.setWebhook(WEBHOOK_URL)
     return f'Webhook set to {WEBHOOK_URL}'
 
-# Health check endpoint
+# Health check route
 @app.route('/health', methods=['GET'])
 def health_check():
-    return 'Bot is healthy!', 200
+    return "Health check OK", 200
 
 # Main function to run the bot
 def main() -> None:
-    # Create the application for the bot
     application = ApplicationBuilder().token(TOKEN).build()
-
-    # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Set up the bot to run via polling
+    # Start the bot
     application.run_polling()
 
 if __name__ == '__main__':
-    # Start the Flask app in a separate thread for handling webhooks and health checks
-    flask_thread = threading.Thread(target=app.run, kwargs={'host': '0.0.0.0', 'port': 8000})
-    flask_thread.start()
+    # Run both the health check app and the bot app
+    import threading
 
-    # Start the Telegram bot
+    # Start the health check app in a separate thread
+    health_thread = threading.Thread(target=app.run, kwargs={'host': '0.0.0.0', 'port': 8000})
+    health_thread.start()
+
+    # Run the main bot application
     main()
