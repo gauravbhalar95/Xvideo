@@ -14,8 +14,8 @@ COPY . /app/
 # Install the required Python packages.
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port 8000.
-EXPOSE 8000
+# Expose ports for both the bot and health check
+EXPOSE 8000 8001
 
 # Command to run the application.
-CMD ["python", "app.py"]
+CMD python3 app.py
