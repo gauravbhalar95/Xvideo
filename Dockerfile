@@ -1,31 +1,36 @@
-# Use an official Python runtime as a base image
+# Use an official Python runtime as a parent image
 FROM python:3.10-slim
 
-# Install ffmpeg
-RUN apt-get update && apt-get install -y ffmpeg
+# Set environment variables for unbuffered logging
+ENV PYTHONUNBUFFERED 1
 
-# Set environment variables for Flask and bot tokens
-ENV BOT_TOKEN=7232982155:AAFDc1SGZ3T8ZUiOun4oEbPpQpr3-6zKuAM \
-    WEBHOOK_URL=https://everyday-nessie-telegramboth-1ba5f30e.koyeb.app/
+# Set work directory
+WORKDIR /app
 
-# Set the working directory in the container
-WORKDIR /usr/src/app
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    ffmpeg \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the current directory contents into the container
-COPY . .
+# Install yt-dlp
+RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
+    chmod a+rx /usr/local/bin/yt-dlp
 
-# Install any needed packages specified in requirements.txt
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy the current directory contents into the container at /app
+COPY . /app
 
-# Make the directories for downloads (videos)
-RUN mkdir -p downloads
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Expose the port that Flask will run on
-EXPOSE 5000
-
-# Expose the health check app port
+# Expose port 8000 for health check and webhook
 EXPOSE 8000
 
-# Command to run both the health check app and the bot application
-CMD ["python", "-m", "webhook"]
+# Define environment variables
+ENV BOT_TOKEN=7232982155:AAFDc1SGZ3T8ZUiOun4oEbPpQpr3-6zKuAM
+ENV WEBHOOK_URL=https://everyday-nessie-telegramboth-1ba5f30e.koyeb.app/
+
+# Start the bot and Flask server using the bot.py script
+CMD ["python", "bot.py"]
