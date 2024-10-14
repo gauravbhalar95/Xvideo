@@ -1,27 +1,24 @@
-# Use Python slim image
-FROM python:3.10-slim
+# Use the official Python image from Docker Hub
+FROM python:3.11-slim
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
 
-# Set working directory
+# Set the working directory in the container
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+# Copy the requirements file into the container
+COPY requirements.txt .
 
-# Install Python dependencies
-COPY requirements.txt /app/
+# Install the required packages
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy project files
-COPY . /app/
+# Copy the entire application code into the container
+COPY . .
 
-# Expose the port Flask will run on
+# Expose the port for Flask (default is 8000)
 EXPOSE 8000
 
-# Run the Flask app
-CMD ["python", "app.py"]
+# Command to run the application
+CMD ["python", "app.py"]  # Replace with the name of your bot script
