@@ -1,9 +1,10 @@
 import os
-import logging  # Import the logging module
+import logging
 import youtube_dl
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
+from moviepy.editor import VideoFileClip
 
 # Apply the patch for nested event loops
 nest_asyncio.apply()
@@ -47,6 +48,17 @@ def download_video(url):
         logger.error(f"Error downloading video: {e}")
         return str(e)
 
+# Function to check if video exceeds size limit
+def is_video_too_large(video_path, max_size_mb=50):
+    file_size_mb = os.path.getsize(video_path) / (1024 * 1024)
+    return file_size_mb > max_size_mb
+
+# Function to compress video
+def compress_video(input_path, output_path, target_size_mb=50):
+    clip = VideoFileClip(input_path)
+    clip_resized = clip.resize(height=360)  # Resize to lower resolution
+    clip_resized.write_videofile(output_path, bitrate="500k")  # Compress the video
+
 # Command /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Welcome! Send me a video link to download.")
@@ -59,17 +71,37 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # Call the download_video function
     video_path = download_video(url)
+    compressed_path = "downloads/compressed_video.mp4"
 
     # Check if the video was downloaded successfully
     if os.path.exists(video_path):
+        # Check if the video is too large to send
+        if is_video_too_large(video_path, max_size_mb=50):
+            await update.message.reply_text("Video is too large, compressing...")
+            compress_video(video_path, compressed_path)
+
+            # Check if compressed video is still too large
+            if is_video_too_large(compressed_path, max_size_mb=50):
+                await update.message.reply_text("Error: The video is still too large after compression.")
+                os.remove(video_path)
+                os.remove(compressed_path)
+                return
+
+            video_path = compressed_path
+
         with open(video_path, 'rb') as video:
             await update.message.reply_video(video)
+
         os.remove(video_path)  # Remove the file after sending
+        if os.path.exists(compressed_path):
+            os.remove(compressed_path)  # Clean up compressed video
+
         logger.info(f"Video sent and deleted: {video_path}")
     else:
         logger.error(f"Error: {video_path}")
         await update.message.reply_text(f"Error: {video_path}")
 
+# Main function
 def main() -> None:
     # Create the application with webhook
     application = ApplicationBuilder().token(TOKEN).build()
