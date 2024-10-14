@@ -1,13 +1,19 @@
 import os
+import logging  # Import the logging module
 import youtube_dl
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
-import re
-import asyncio
 
 # Apply the patch for nested event loops
 nest_asyncio.apply()
+
+# Set up logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 # Your Telegram bot token and webhook URL from environment variables
 TOKEN = os.getenv('BOT_TOKEN')
@@ -15,44 +21,31 @@ WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 PORT = int(os.getenv('PORT', 8443))  # Default to 8443 if not set
 
 if not TOKEN:
-    raise ValueError("Error: BOT_TOKEN is not set")
+    logger.error("Error: BOT_TOKEN is not set")
+    raise ValueError("BOT_TOKEN is not set")
 if not WEBHOOK_URL:
-    raise ValueError("Error: WEBHOOK_URL is not set")
-
-# Create downloads directory if it doesn't exist
-if not os.path.exists('downloads'):
-    os.makedirs('downloads')
+    logger.error("Error: WEBHOOK_URL is not set")
+    raise ValueError("WEBHOOK_URL is not set")
 
 # Function to download video using youtube_dl
-async def download_video(url):
+def download_video(url):
     ydl_opts = {
         'format': 'best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'quiet': True,
-        'progress_hooks': [progress_hook],
     }
 
-    # Validate URL
-    if not re.match(r'https?://', url):
-        return "Invalid URL. Please send a valid video link."
+    # Create downloads directory if it doesn't exist
+    if not os.path.exists('downloads'):
+        os.makedirs('downloads')
 
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
-            file_path = os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
-            # Check file size
-            if os.path.getsize(file_path) > 200 * 1024 * 1024:  # 200 MB limit
-                os.remove(file_path)
-                return "Error: The downloaded file exceeds the 200 MB limit."
-            return file_path
+            return os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
     except Exception as e:
-        return f"Error: {str(e)}"
-
-# Progress hook to send updates to the user
-def progress_hook(d):
-    if d['status'] == 'downloading':
-        percent = d.get('downloaded_bytes', 0) / d.get('total_bytes', 1) * 100
-        logging.info(f'Downloading: {percent:.2f}%')
+        logger.error(f"Error downloading video: {e}")
+        return str(e)
 
 # Command /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -61,18 +54,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # Handle pasted URLs
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     url = update.message.text.strip()
+    logger.info(f"Received URL: {url}")
     await update.message.reply_text("Downloading video...")
 
     # Call the download_video function
-    video_path = await download_video(url)
+    video_path = download_video(url)
 
     # Check if the video was downloaded successfully
-    if isinstance(video_path, str) and os.path.exists(video_path):
+    if os.path.exists(video_path):
         with open(video_path, 'rb') as video:
             await update.message.reply_video(video)
         os.remove(video_path)  # Remove the file after sending
+        logger.info(f"Video sent and deleted: {video_path}")
     else:
-        await update.message.reply_text(video_path)
+        logger.error(f"Error: {video_path}")
+        await update.message.reply_text(f"Error: {video_path}")
 
 def main() -> None:
     # Create the application with webhook
