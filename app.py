@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # Your Telegram bot token and webhook URL from environment variables
 TOKEN = os.getenv('BOT_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-PORT = int(os.getenv('PORT', 8443))  # Default to 8443 if not set
+PORT = int(os.getenv('PORT', 8080))  # Default to 8443 if not set
 
 if not TOKEN:
     logger.error("Error: BOT_TOKEN is not set")
