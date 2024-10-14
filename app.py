@@ -108,7 +108,7 @@ if __name__ == '__main__':
     import threading
 
     # Start the health check app in a separate thread
-    health_thread = threading.Thread(target=health_app.run, kwargs={'host': '0.0.0.0', 'port': 8001})
+    health_thread = threading.Thread(target=health_app.run, kwargs={'host': '0.0.0.0', 'port': 8000})
     health_thread.start()
 
     # Run the main bot application
