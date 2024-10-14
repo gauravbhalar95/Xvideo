@@ -25,30 +25,35 @@ if not TOKEN or not WEBHOOK_URL:
     raise ValueError("Error: BOT_TOKEN and WEBHOOK_URL must be set")
 
 # Function to download video using yt-dlp
-def download_video(url):
+def download_media(url):
+    logging.debug(f"Attempting to download media from URL: {url}")
+
     ydl_opts = {
-        'format': 'bestvideo+bestaudio/best',
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'quiet': False,
-        'retries': 5,
-        'continuedl': True,
-        'noplaylist': True,
+        'format': 'bestvideo+bestaudio/best',  # Download best video and audio
+        'outtmpl': f'{output_dir}%(title)s.%(ext)s',
         'merge_output_format': 'mp4',
+        'cookiefile': cookies_file,
+        'postprocessors': [{
+            'key': 'FFmpegVideoConvertor',
+            'preferedformat': 'mp4',
+        }],
+        'ffmpeg_location': '/bin/ffmpeg',
+        'socket_timeout': 10,
+        'retries': 5,
+        'max_filesize': 2 * 1024 * 1024 * 1024,  # Max size 2GB
+        'verbose': True,  # Enable verbose logging
     }
 
-    os.makedirs('downloads', exist_ok=True)
-
     try:
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
-            if info_dict and 'title' in info_dict:
-                file_path = os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
-                return file_path, info_dict['title']
-            else:
-                return None, None
+            file_path = ydl.prepare_filename(info_dict)
+        return file_path
+
     except Exception as e:
-        print(f"Error downloading video: {e}")
-        return None, None
+        logging.error(f"yt-dlp download error: {str(e)}")
+        raise
+
 
 # Function to fetch video links from xVideos
 def fetch_xvideos_links(search_query):
