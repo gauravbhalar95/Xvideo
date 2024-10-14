@@ -33,4 +33,4 @@ ENV BOT_TOKEN=7232982155:AAFDc1SGZ3T8ZUiOun4oEbPpQpr3-6zKuAM
 ENV WEBHOOK_URL=https://everyday-nessie-telegramboth-1ba5f30e.koyeb.app/
 
 # Start the bot and Flask server using the bot.py script
-CMD ["python", "bot.py"]
+CMD ["python", "app.py"]
