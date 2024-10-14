@@ -28,4 +28,4 @@ EXPOSE 5000
 EXPOSE 8000
 
 # Command to run both the health check app and the bot application
-CMD ["python3", "-m", "webhook"]
+CMD ["python", "-m", "webhook"]
