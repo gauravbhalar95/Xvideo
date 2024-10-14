@@ -5,6 +5,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
 from moviepy.editor import VideoFileClip
+import asyncio
 
 # Apply the patch for nested event loops
 nest_asyncio.apply()
@@ -46,10 +47,10 @@ def download_video(url):
             return os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
     except Exception as e:
         logger.error(f"Error downloading video: {e}")
-        return str(e)
+        return None
 
 # Function to check if video exceeds size limit
-def is_video_too_large(video_path, max_size_mb=50):
+def is_video_too_large(video_path, max_size_mb=100):
     file_size_mb = os.path.getsize(video_path) / (1024 * 1024)
     return file_size_mb > max_size_mb
 
@@ -74,7 +75,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     compressed_path = "downloads/compressed_video.mp4"
 
     # Check if the video was downloaded successfully
-    if os.path.exists(video_path):
+    if video_path and os.path.exists(video_path):
         # Check if the video is too large to send
         if is_video_too_large(video_path, max_size_mb=50):
             await update.message.reply_text("Video is too large, compressing...")
@@ -84,7 +85,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             if is_video_too_large(compressed_path, max_size_mb=50):
                 await update.message.reply_text("Error: The video is still too large after compression.")
                 os.remove(video_path)
-                os.remove(compressed_path)
+                if os.path.exists(compressed_path):
+                    os.remove(compressed_path)
                 return
 
             video_path = compressed_path
@@ -98,8 +100,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         logger.info(f"Video sent and deleted: {video_path}")
     else:
-        logger.error(f"Error: {video_path}")
-        await update.message.reply_text(f"Error: {video_path}")
+        logger.error(f"Error downloading video: {video_path}")
+        await update.message.reply_text("Error downloading video. Please check the URL or try again.")
 
 # Main function
 def main() -> None:
