@@ -22,13 +22,13 @@ if not TOKEN or not WEBHOOK_URL:
 # Function to download video using yt-dlp
 def download_video(url):
     ydl_opts = {
-        'format': 'bestvideo+bestaudio/best',  # Use best video and audio
+        'format': 'bestvideo+bestaudio/best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'quiet': False,
-        'retries': 5,  # Increased retries for reliability
+        'retries': 5,
         'continuedl': True,
         'noplaylist': True,
-        'merge_output_format': 'mp4',  # Automatically merge video and audio to mp4
+        'merge_output_format': 'mp4',
     }
 
     if not os.path.exists('downloads'):
@@ -48,9 +48,8 @@ def download_video(url):
 
 # Function to process video using FFmpeg
 def process_video(input_path, output_path):
-    # Update this command to use the correct path to ffmpeg
-    command = ['/bin/ffmpeg', '-i', input_path, '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', 
-               '-c:a', 'aac', '-b:a', '192k', output_path]  # Adjusted parameters for better quality
+    command = ['ffmpeg', '-i', input_path, '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', 
+               '-c:a', 'aac', '-b:a', '192k', output_path]
     try:
         subprocess.run(command, check=True)
         return True
@@ -64,21 +63,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Handle pasted URLs
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    url = update.message.text.strip()  # Get the URL sent by the user
+    url = update.message.text.strip()
     await update.message.reply_text("Downloading video...")
-
-    # Call the download_video function
     video_path, video_title, video_ext = download_video(url)
 
     if video_path and os.path.exists(video_path):
         output_path = os.path.join('downloads', f"{video_title}_processed.mp4")
-
-        # Process video with FFmpeg
         if process_video(video_path, output_path):
             with open(output_path, 'rb') as video:
                 await update.message.reply_video(video, caption=f"Here is your processed video: {video_title}")
-            os.remove(video_path)  # Remove the original file after sending
-            os.remove(output_path)  # Remove the processed file after sending
+            os.remove(video_path)
+            os.remove(output_path)
         else:
             await update.message.reply_text("Error: Unable to process the video.")
     else:
@@ -97,17 +92,17 @@ def set_webhook() -> str:
     app.bot.setWebhook(WEBHOOK_URL)
     return f'Webhook set to {WEBHOOK_URL}'
 
+# Health check route
+@app.route('/')
+def health_check():
+    return "Healthy", 200
+
 # Main function to run the bot
 def main() -> None:
-    # Create the bot application
     application = ApplicationBuilder().token(TOKEN).build()
-
-    # Register commands and message handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Start the bot with the Flask app
     application.run_polling()
 
 if __name__ == '__main__':
-    main()
+    app.run(host='0.0.0.0', port=8000)
