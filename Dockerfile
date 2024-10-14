@@ -1,36 +1,21 @@
-# Use the official Python image from the Docker Hub
+# Use a lightweight official Python image.
 FROM python:3.9-slim
 
-# Set the working directory
+# Set environment variables to avoid Python buffering output and writing .pyc files.
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# Set the working directory inside the container.
 WORKDIR /app
 
-# Install dependencies
-RUN apt-get update && \
-    apt-get install -y \
-    wget \
-    build-essential \
-    libass-dev \
-    libmp3lame-dev \
-    libopus-dev \
-    libtheora-dev \
-    libvorbis-dev \
-    libx264-dev \
-    libx265-dev \
-    git \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Copy the local application code to the container.
+COPY . /app/
 
-# Copy the requirements file into the container
-COPY requirements.txt .
-
-# Install Python dependencies
+# Install the required Python packages.
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code into the container
-COPY . .
+# Expose port 8000.
+EXPOSE 8000
 
-# Expose the port the app runs on (if applicable)
-EXPOSE 8000  
-
-# Command to run the application
-CMD ["python3", "app.py"] 
+# Command to run the application.
+CMD ["python", "app.py"]  # Modify this if you're using a different app framework
