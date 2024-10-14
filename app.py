@@ -1,24 +1,18 @@
 import os
 import subprocess
 import yt_dlp as youtube_dl
-from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
-from health import app as health_app  # Import the health check app
 
 # Apply the patch for nested event loops
 nest_asyncio.apply()
 
-# Initialize Flask app for the Telegram bot
-app = Flask(__name__)
-
 # Telegram bot setup
 TOKEN = os.getenv('BOT_TOKEN')
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Make sure to set this in your environment
 
-if not TOKEN or not WEBHOOK_URL:
-    raise ValueError("Error: BOT_TOKEN and WEBHOOK_URL must be set")
+if not TOKEN:
+    raise ValueError("Error: BOT_TOKEN must be set")
 
 # Function to download video using yt-dlp
 def download_video(url):
@@ -81,35 +75,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     else:
         await update.message.reply_text("Error: Unable to download the video. The URL may not be supported or invalid.")
 
-# Webhook endpoint for Telegram
-@app.route(f'/{TOKEN}', methods=['POST'])
-def webhook() -> str:
-    update = Update.de_json(request.get_json(force=True), app.bot)
-    app.dispatcher.process_update(update)
-    return 'ok'
-
-# Set webhook route
-@app.route('/set_webhook', methods=['GET'])
-def set_webhook() -> str:
-    app.bot.setWebhook(WEBHOOK_URL)
-    return f'Webhook set to {WEBHOOK_URL}'
-
 # Main function to run the bot
 def main() -> None:
     application = ApplicationBuilder().token(TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Start the bot with the Flask app
+    # Start the bot with polling
     application.run_polling()
 
 if __name__ == '__main__':
-    # Run both the health check app and the bot app
-    import threading
-
-    # Start the health check app in a separate thread
-    health_thread = threading.Thread(target=health_app.run, kwargs={'host': '0.0.0.0', 'port': 8000})
-    health_thread.start()
-
-    # Run the main bot application
     main()
