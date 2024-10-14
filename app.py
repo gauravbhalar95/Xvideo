@@ -5,21 +5,20 @@ from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
-from health import app as health_app  # Import the health check app
 import logging
 
-# Enable logging to debug issues
+# Enable logging for debugging
 logging.basicConfig(level=logging.DEBUG)
 
 # Apply the patch for nested event loops
 nest_asyncio.apply()
 
-# Initialize Flask app for the Telegram bot
+# Initialize Flask app for the bot
 app = Flask(__name__)
 
 # Telegram bot setup
 TOKEN = os.getenv('BOT_TOKEN')
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Make sure to set this in your environment
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Ensure this is set in your environment
 
 if not TOKEN or not WEBHOOK_URL:
     raise ValueError("Error: BOT_TOKEN and WEBHOOK_URL must be set")
