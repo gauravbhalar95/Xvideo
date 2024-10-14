@@ -21,4 +21,4 @@ COPY . .
 EXPOSE 8000
 
 # Command to run the application
-CMD ["python", "app.py"]  # Replace with the name of your bot script
+CMD python app.py"
