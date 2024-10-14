@@ -1,11 +1,11 @@
-from flask import Flask
+from fastapi import FastAPI
 
-app = Flask(__name__)
+app = FastAPI()
 
-@app.route('/')
-def health_check():
-    return "OK", 200
+@app.get("/")
+def read_root():
+    return {"message": "Hello, Koyeb! FastAPI app is running"}
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8000)
-  
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
