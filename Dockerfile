@@ -18,4 +18,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 8000
 
 # Command to run the application.
-CMD ["python", "app.py"]  # Modify this if you're using a different app framework
+CMD python app.py
