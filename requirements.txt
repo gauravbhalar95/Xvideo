@@ -12,5 +12,5 @@ telebot
 pydrive
 uvicorn==0.22.0
 beautifulsoup4
-
+moviepy
 
