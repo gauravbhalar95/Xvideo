@@ -24,11 +24,9 @@ def download_video(url):
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'quiet': True,
     }
-
     # Create downloads directory if it doesn't exist
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
-
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
@@ -44,10 +42,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     url = update.message.text.strip()
     await update.message.reply_text("Downloading video...")
-
     # Call the download_video function
     video_path = download_video(url)
-
     # Check if the video was downloaded successfully
     if os.path.exists(video_path):
         with open(video_path, 'rb') as video:
@@ -59,14 +55,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 def main() -> None:
     # Create the application with webhook
     application = ApplicationBuilder().token(TOKEN).build()
-
     # Register handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
     # Extract the webhook path (the token itself is used as the path)
     url_path = WEBHOOK_URL.split('/')[-1]
-
     # Start the bot using webhook
     application.run_webhook(
         listen="0.0.0.0",  # Listen on all network interfaces
