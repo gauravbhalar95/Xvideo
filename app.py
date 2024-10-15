@@ -1,141 +1,59 @@
 import os
-import subprocess
-import yt_dlp as youtube_dl
-from flask import Flask, request
+import logging
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-import nest_asyncio
-import logging
-from moviepy.editor import VideoFileClip
+import yt_dlp
 
-# Enable logging for debugging
-logging.basicConfig(level=logging.DEBUG)
+# Set up logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Apply the patch for nested event loops
-nest_asyncio.apply()
+# Command to start the bot
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Welcome! Send me a video link to download it.")
 
-# Initialize Flask app for the bot
-app = Flask(__name__)
+# Function to download video
+async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    video_url = update.message.text
+    await update.message.reply_text("Downloading video...")
 
-# Telegram bot setup
-TOKEN = os.getenv('BOT_TOKEN')
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Ensure this is set in your environment
-
-if not TOKEN or not WEBHOOK_URL:
-    raise ValueError("Error: BOT_TOKEN and WEBHOOK_URL must be set")
-
-# Function to download video using yt-dlp
-def download_video(url):
     ydl_opts = {
-        'format': 'bestvideo+bestaudio/best',
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'quiet': False,
-        'retries': 5,
-        'continuedl': True,
+        'format': 'best',
+        'outtmpl': 'downloads/%(title)s.%(ext)s',  # Set download directory and filename
         'noplaylist': True,
-        'merge_output_format': 'mp4',
+        'quiet': False,
     }
 
     # Create downloads directory if it doesn't exist
-    os.makedirs('downloads', exist_ok=True)
+    if not os.path.exists('downloads'):
+        os.makedirs('downloads')
 
     try:
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(url, download=True)
-            if info_dict and 'title' in info_dict:
-                file_path = os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
-                return file_path, info_dict['title'], info_dict['ext']
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([video_url])
+            info_dict = ydl.extract_info(video_url, download=False)
+            video_title = info_dict.get('title', 'Video')
+            video_file = f'downloads/{video_title}.mp4'
+            await update.message.reply_text(f"Video '{video_title}' downloaded successfully!")
+
+            # Send the video back to the user
+            if os.path.exists(video_file):
+                with open(video_file, 'rb') as video:
+                    await context.bot.send_video(chat_id=update.effective_chat.id, video=video)
             else:
-                return None, None, None
+                await update.message.reply_text("Error: Video file not found.")
     except Exception as e:
-        logging.error(f"Error downloading video: {e}")
-        return None, None, None
+        logger.error(f"Error downloading video: {e}")
+        await update.message.reply_text("Error downloading video. Please check the link and try again.")
 
-# Function to process video using MoviePy
-def process_video(video_path):
-    try:
-        clip = VideoFileClip(video_path)
-
-        # Check if video is too large (over 10 minutes), trim it
-        max_duration = 10 * 60  # 10 minutes as an example for trimming
-        if clip.duration > max_duration:
-            logging.info(f"Trimming video '{video_path}' to {max_duration} seconds.")
-            clip = clip.subclip(0, max_duration)
-
-        # Resize if needed (example: resize to 720p)
-        if clip.size[1] > 720:  # if height > 720 pixels
-            logging.info(f"Resizing video '{video_path}' to height 720.")
-            clip = clip.resize(height=720)
-
-        # Save the processed video
-        output_path = video_path.replace(".mp4", "_processed.mp4")
-        logging.info(f"Saving processed video to '{output_path}'.")
-        clip.write_videofile(output_path, codec="libx264", audio_codec="aac", threads=4)
-
-        return output_path
-    except Exception as e:
-        logging.error(f"Error processing video '{video_path}': {e}")
-        return None
-
-# Command /start to welcome the user
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Welcome! Send me a video link to download.")
-
-# Handle pasted URLs
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    url = update.message.text.strip()
-    await update.message.reply_text("Downloading video...")
-
-    video_path, video_title, video_ext = download_video(url)
-
-    if video_path and os.path.exists(video_path):
-        output_path = process_video(video_path)
-        if output_path:
-            with open(output_path, 'rb') as video:
-                await update.message.reply_video(video, caption=f"Here is your processed video: {video_title}")
-            os.remove(video_path)  # Remove the original downloaded video
-            os.remove(output_path)  # Remove the processed video after sending
-        else:
-            await update.message.reply_text("Error: Unable to process the video.")
-    else:
-        await update.message.reply_text("Error: Unable to download the video. The URL may not be supported or invalid.")
-
-# Webhook endpoint for Telegram
-@app.route(f'/{TOKEN}', methods=['POST'])
-def webhook() -> str:
-    update = Update.de_json(request.get_json(force=True), app.bot)
-    app.dispatcher.process_update(update)
-    return 'ok'
-
-# Set webhook route
-@app.route('/set_webhook', methods=['GET'])
-def set_webhook() -> str:
-    # Manually set the webhook for Telegram
-    application = ApplicationBuilder().token(TOKEN).build()
-    application.bot.setWebhook(WEBHOOK_URL)
-    return f'Webhook set to {WEBHOOK_URL}'
-
-# Health check route
-@app.route('/health', methods=['GET'])
-def health_check():
-    return "Health check OK", 200
-
-# Main function to run the bot
-def main() -> None:
-    application = ApplicationBuilder().token(TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Start the bot
-    application.run_polling()
-
+# Main function to start the bot
 if __name__ == '__main__':
-    # Run both the health check app and the bot app
-    import threading
+    TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'  # Replace with your bot's token
+    application = ApplicationBuilder().token(TOKEN).build()
 
-    # Start the health check app in a separate thread
-    health_thread = threading.Thread(target=app.run, kwargs={'host': '0.0.0.0', 'port': 8000})
-    health_thread.start()
+    # Add handlers for commands and messages
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
 
-    # Run the main bot application
-    main()
+    # Run the bot
+    application.run_polling()
