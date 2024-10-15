@@ -1,6 +1,10 @@
 import os
-import youtube_dl
 import re
+import youtube_dl
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
@@ -17,6 +21,41 @@ if not TOKEN:
     raise ValueError("Error: BOT_TOKEN is not set")
 if not WEBHOOK_URL:
     raise ValueError("Error: WEBHOOK_URL is not set")
+
+# Google Drive authentication setup
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
+creds = None
+
+# If modifying the scope, delete the token.json file
+if os.path.exists('token.json'):
+    creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+else:
+    flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+    creds = flow.run_local_server(port=0)
+    with open('token.json', 'w') as token:
+        token.write(creds.to_json())
+
+drive_service = build('drive', 'v3', credentials=creds)
+
+# Function to upload file to Google Drive
+def upload_to_drive(file_path):
+    file_metadata = {
+        'name': os.path.basename(file_path),
+        'parents': ['your-folder-id']  # Replace with the folder ID if necessary
+    }
+    media = MediaFileUpload(file_path, resumable=True)
+    file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+    file_id = file.get('id')
+
+    # Make the file public
+    drive_service.permissions().create(
+        fileId=file_id,
+        body={'role': 'reader', 'type': 'anyone'}
+    ).execute()
+
+    # Get the public URL
+    download_link = f"https://drive.google.com/file/d/{file_id}/view?usp=sharing"
+    return download_link
 
 # Function to sanitize the file name
 def sanitize_filename(filename):
@@ -50,11 +89,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.message.reply_text("Downloading video...")
     # Call the download_video function
     video_path = download_video(url)
+    
     # Check if the video was downloaded successfully
     if os.path.exists(video_path):
-        with open(video_path, 'rb') as video:
-            await update.message.reply_video(video)
-        os.remove(video_path)  # Remove the file after sending
+        await update.message.reply_text("Uploading video to Google Drive...")
+        # Upload the video to Google Drive and get the download link
+        download_link = upload_to_drive(video_path)
+        await update.message.reply_text(f"Download link: {download_link}")
+        os.remove(video_path)  # Remove the file after uploading
     else:
         await update.message.reply_text(f"Error: {video_path}")
 
