@@ -1,10 +1,11 @@
 import os
 import re
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
 from mega import Mega  # Import Mega API
 import youtube_dl
+import asyncio  # Ensure asyncio is imported
 
 # Apply the patch for nested event loops
 nest_asyncio.apply()
@@ -18,12 +19,6 @@ if not TOKEN:
     raise ValueError("Error: BOT_TOKEN is not set")
 if not WEBHOOK_URL:
     raise ValueError("Error: WEBHOOK_URL is not set")
-
-# States for the conversation
-EMAIL, PASSWORD, URL = range(3)
-
-# Dictionary to store user credentials
-user_credentials = {}
 
 # Function to sanitize the file name
 def sanitize_filename(filename):
@@ -47,10 +42,12 @@ def download_video(url):
     except Exception as e:
         return str(e)
 
-# Function to upload file to Mega.nz using credentials
-def upload_to_mega(file_path, email, password):
+# Function to upload file to Mega.nz
+def upload_to_mega(file_path):
     try:
         mega = Mega()
+        email = os.getenv('MEGA_EMAIL')
+        password = os.getenv('MEGA_PASSWORD')
         m = mega.login(email, password)
 
         if m is None:
@@ -63,40 +60,34 @@ def upload_to_mega(file_path, email, password):
     except Exception as e:
         return str(e)
 
-# Start conversation to collect credentials
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("Welcome! Please provide your Mega.nz email.")
-    return EMAIL
+# Function to delete file from Mega.nz
+def delete_from_mega(file_link):
+    try:
+        mega = Mega()
+        email = os.getenv('MEGA_EMAIL')
+        password = os.getenv('MEGA_PASSWORD')
+        m = mega.login(email, password)
 
-# Collect email
-async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user_id = update.message.from_user.id
-    user_credentials[user_id] = {'email': update.message.text}
-    
-    await update.message.reply_text("Please provide your Mega.nz password.")
-    return PASSWORD
+        if m is None:
+            raise ValueError("Error: Could not login to Mega.nz. Check credentials.")
 
-# Collect password
-async def get_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user_id = update.message.from_user.id
-    user_credentials[user_id]['password'] = update.message.text
-    
-    await update.message.reply_text("Send me a video link to download and upload to Mega.nz.")
-    return URL
+        # Find file by its link and delete it
+        file = m.find(file_link)
+        if file:
+            m.destroy(file[0])
+            return "File deleted successfully."
+        else:
+            return "File not found."
+    except Exception as e:
+        return str(e)
 
-# Handle pasted URLs and upload video
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user_id = update.message.from_user.id
+# Command /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text("Welcome! Send me a video link to download and upload to Mega.nz.")
+
+# Handle pasted URLs
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     url = update.message.text.strip()
-    
-    # Check if user has provided credentials
-    if user_id not in user_credentials:
-        await update.message.reply_text("Please start the process by using /start.")
-        return ConversationHandler.END
-    
-    email = user_credentials[user_id]['email']
-    password = user_credentials[user_id]['password']
-    
     await update.message.reply_text("Downloading video...")
 
     # Call the download_video function
@@ -105,7 +96,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Check if the video was downloaded successfully
     if os.path.exists(video_path):
         await update.message.reply_text("Uploading to Mega.nz...")
-        mega_link = upload_to_mega(video_path, email, password)
+        mega_link = upload_to_mega(video_path)
 
         if "Error" not in mega_link:
             await update.message.reply_text(f"Video uploaded successfully! Here is your link: {mega_link}")
@@ -116,8 +107,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         os.remove(video_path)  
     else:
         await update.message.reply_text(f"Error: {video_path}")
-    
-    return ConversationHandler.END
 
 # Command to delete a file from Mega.nz
 async def delete_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -133,20 +122,10 @@ def main() -> None:
     # Create the application with webhook
     application = ApplicationBuilder().token(TOKEN).build()
 
-    # Define the conversation handler
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
-        states={
-            EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)],
-            PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_password)],
-            URL: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)]
-        },
-        fallbacks=[]
-    )
-
     # Register handlers
-    application.add_handler(conv_handler)
+    application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("delete", delete_file))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # Extract the webhook path (the token itself is used as the path)
     url_path = WEBHOOK_URL.split('/')[-1]
