@@ -1,5 +1,6 @@
 import os
 import youtube_dl
+import re
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
@@ -17,6 +18,10 @@ if not TOKEN:
 if not WEBHOOK_URL:
     raise ValueError("Error: WEBHOOK_URL is not set")
 
+# Function to sanitize the file name
+def sanitize_filename(filename):
+    return re.sub(r'[\/:*?"<>|]', '', filename)
+
 # Function to download video using youtube_dl
 def download_video(url):
     ydl_opts = {
@@ -30,7 +35,8 @@ def download_video(url):
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
-            return os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
+            title = sanitize_filename(info_dict['title'])
+            return os.path.join('downloads', f"{title}.{info_dict['ext']}")
     except Exception as e:
         return str(e)
 
