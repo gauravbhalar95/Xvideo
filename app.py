@@ -5,7 +5,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 import nest_asyncio
 from mega import Mega  # Import Mega API
 import youtube_dl
-import asyncio  # Ensure asyncio is imported
+import asyncio
 
 # Apply the patch for nested event loops
 nest_asyncio.apply()
