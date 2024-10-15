@@ -9,11 +9,7 @@ nest_asyncio
 yt-dlp
 tqdm==4.62.3
 telebot
-pydrive
 uvicorn==0.22.0
 beautifulsoup4
 moviepy
-google-auth
-google-auth-oauthlib
-google-api-python-client
-
+mega.py
