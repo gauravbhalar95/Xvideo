@@ -1,27 +1,34 @@
 import os
+import subprocess
 import yt_dlp as youtube_dl
+from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
 import logging
-import requests
-from bs4 import BeautifulSoup
 from moviepy.editor import VideoFileClip
+
+# Enable logging for debugging
+logging.basicConfig(level=logging.DEBUG)
 
 # Apply the patch for nested event loops
 nest_asyncio.apply()
 
-# Enable logging for debugging
-logging.basicConfig(level=logging.INFO)
+# Initialize Flask app for the bot
+app = Flask(__name__)
 
-# Bot token (replace with your actual token)
-TOKEN = os.getenv("BOT_TOKEN")
+# Telegram bot setup
+TOKEN = os.getenv('BOT_TOKEN')
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Ensure this is set in your environment
+
+if not TOKEN or not WEBHOOK_URL:
+    raise ValueError("Error: BOT_TOKEN and WEBHOOK_URL must be set")
 
 # Function to download video using yt-dlp
-def download_video(url, platform):
+def download_video(url):
     ydl_opts = {
         'format': 'bestvideo+bestaudio/best',
-        'outtmpl': f'downloads/%(title)s_{platform}.%(ext)s',
+        'outtmpl': 'downloads/%(title)s.%(ext)s',
         'quiet': False,
         'retries': 5,
         'continuedl': True,
@@ -36,106 +43,99 @@ def download_video(url, platform):
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
             if info_dict and 'title' in info_dict:
-                file_path = os.path.join('downloads', f"{info_dict['title']}_{platform}.mp4")
-                return file_path, info_dict['title']
+                file_path = os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
+                return file_path, info_dict['title'], info_dict['ext']
             else:
-                return None, None
+                return None, None, None
     except Exception as e:
-        print(f"Error downloading video: {e}")
-        return None, None
+        logging.error(f"Error downloading video: {e}")
+        return None, None, None
 
-# Scraping function for fetching the video URL (example for XHamster and Xvideos)
-def fetch_video_url_from_page(page_url):
-    try:
-        response = requests.get(page_url)
-        soup = BeautifulSoup(response.text, 'html.parser')
-
-        # Example for XHamster (adjust the selectors for each site)
-        video_url = soup.find('video')['src'] if soup.find('video') else None
-        return video_url
-    except Exception as e:
-        print(f"Error fetching video URL: {e}")
-        return None
-
-# Function to process video (compress, trim, or resize)
+# Function to process video using MoviePy
 def process_video(video_path):
     try:
         clip = VideoFileClip(video_path)
-        # Check if video is too large (over 2GB), trim or resize it
+
+        # Check if video is too large (over 10 minutes), trim it
         max_duration = 10 * 60  # 10 minutes as an example for trimming
         if clip.duration > max_duration:
+            logging.info(f"Trimming video '{video_path}' to {max_duration} seconds.")
             clip = clip.subclip(0, max_duration)
 
         # Resize if needed (example: resize to 720p)
         if clip.size[1] > 720:  # if height > 720 pixels
+            logging.info(f"Resizing video '{video_path}' to height 720.")
             clip = clip.resize(height=720)
 
         # Save the processed video
         output_path = video_path.replace(".mp4", "_processed.mp4")
-        clip.write_videofile(output_path, codec="libx264", audio_codec="aac")
+        logging.info(f"Saving processed video to '{output_path}'.")
+        clip.write_videofile(output_path, codec="libx264", audio_codec="aac", threads=4)
 
         return output_path
     except Exception as e:
-        print(f"Error processing video: {e}")
+        logging.error(f"Error processing video '{video_path}': {e}")
         return None
 
 # Command /start to welcome the user
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Welcome! Send me a video link to download from YouTube, XHamster, Xvideos, or any other supported platform.")
+    await update.message.reply_text("Welcome! Send me a video link to download.")
 
-# Handle messages with URLs
+# Handle pasted URLs
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     url = update.message.text.strip()
+    await update.message.reply_text("Downloading video...")
 
-    if 'youtube.com' in url or 'youtu.be' in url:
-        platform = "YouTube"
-    elif 'xvideos.com' in url:
-        platform = "Xvideos"
-    elif 'xhamster.com' in url:
-        platform = "XHamster"
-        # Fetch the actual video URL from the page
-        url = fetch_video_url_from_page(url)
-        if not url:
-            await update.message.reply_text("Error fetching the video URL from the page.")
-            return
-    else:
-        await update.message.reply_text("This URL is not supported.")
-        return
-
-    await update.message.reply_text(f"Downloading video from {platform}...")
-
-    # Download the video
-    video_path, video_title = download_video(url, platform)
+    video_path, video_title, video_ext = download_video(url)
 
     if video_path and os.path.exists(video_path):
-        await update.message.reply_text(f"Processing video: {video_title}...")
-        
-        # Process the video using moviepy (trim, resize)
-        processed_video_path = process_video(video_path)
-
-        if processed_video_path and os.path.exists(processed_video_path):
-            with open(processed_video_path, 'rb') as video:
+        output_path = process_video(video_path)
+        if output_path:
+            with open(output_path, 'rb') as video:
                 await update.message.reply_video(video, caption=f"Here is your processed video: {video_title}")
-            os.remove(processed_video_path)  # Clean up the processed video
+            os.remove(video_path)  # Remove the original downloaded video
+            os.remove(output_path)  # Remove the processed video after sending
         else:
-            await update.message.reply_text("Error processing the video.")
-        
-        os.remove(video_path)  # Clean up the original video
+            await update.message.reply_text("Error: Unable to process the video.")
     else:
-        await update.message.reply_text("Error downloading the video. Please try again.")
+        await update.message.reply_text("Error: Unable to download the video. The URL may not be supported or invalid.")
+
+# Webhook endpoint for Telegram
+@app.route(f'/{TOKEN}', methods=['POST'])
+def webhook() -> str:
+    update = Update.de_json(request.get_json(force=True), app.bot)
+    app.dispatcher.process_update(update)
+    return 'ok'
+
+# Set webhook route
+@app.route('/set_webhook', methods=['GET'])
+def set_webhook() -> str:
+    # Manually set the webhook for Telegram
+    application = ApplicationBuilder().token(TOKEN).build()
+    application.bot.setWebhook(WEBHOOK_URL)
+    return f'Webhook set to {WEBHOOK_URL}'
+
+# Health check route
+@app.route('/health', methods=['GET'])
+def health_check():
+    return "Health check OK", 200
 
 # Main function to run the bot
 def main() -> None:
     application = ApplicationBuilder().token(TOKEN).build()
-
-    # Command handler for /start
     application.add_handler(CommandHandler("start", start))
-
-    # Message handler for URLs
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Run the bot
+    # Start the bot
     application.run_polling()
 
 if __name__ == '__main__':
+    # Run both the health check app and the bot app
+    import threading
+
+    # Start the health check app in a separate thread
+    health_thread = threading.Thread(target=app.run, kwargs={'host': '0.0.0.0', 'port': 8000})
+    health_thread.start()
+
+    # Run the main bot application
     main()
