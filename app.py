@@ -41,7 +41,7 @@ drive_service = build('drive', 'v3', credentials=creds)
 def upload_to_drive(file_path):
     file_metadata = {
         'name': os.path.basename(file_path),
-        'parents': ['your-folder-id']  # Replace with the folder ID if necessary
+        'parents': ['1Nr4NG82CTJoXMoLDKU4bU-jaGuK1XrJt']  # Replace with the folder ID if necessary
     }
     media = MediaFileUpload(file_path, resumable=True)
     file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
