@@ -12,7 +12,4 @@ telebot
 uvicorn==0.22.0
 beautifulsoup4
 moviepy
-mega.py
 asyncio
-tenacity
-mega
