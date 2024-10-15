@@ -15,3 +15,4 @@ moviepy
 mega.py
 asyncio
 tenacity
+mega
