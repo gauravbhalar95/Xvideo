@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # Your Telegram bot token from environment variables
 TOKEN = os.getenv('BOT_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-REDIS_URL = os.getenv('REDIS_URL', 'redis://default:your_redis_url_here')
+REDIS_URL = os.getenv('REDIS_URL')
 PORT = int(os.getenv('PORT', 8000))
 
 # Set up Redis connection
