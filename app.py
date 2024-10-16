@@ -1,7 +1,7 @@
 import os
 import re
 import logging
-import yt_dlp  # Use yt-dlp for downloading YouTube videos
+import yt_dlp  # Use yt-dlp for downloading videos from supported platforms
 import nest_asyncio
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # Your Telegram bot token from environment variables
 TOKEN = os.getenv('BOT_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-REDIS_URL = os.getenv('REDIS_URL', 'redis://default:b9pTqUrpgEYvUKcJM3XT3FqpgOyJAX7w@redis-13753.c212.ap-south-1-1.ec2.redns.redis-cloud.com:13753')
+REDIS_URL = os.getenv('REDIS_URL', 'redis://default:your_redis_url_here')
 PORT = int(os.getenv('PORT', 8000))
 
 # Set up Redis connection
@@ -27,6 +27,11 @@ queue = Queue(connection=redis_conn)
 
 if not TOKEN:
     raise ValueError("Error: BOT_TOKEN is not set")
+
+# Supported platforms regex
+YOUTUBE_REGEX = r'^https?://(?:www\.)?(youtube\.com|youtu\.be)'
+XHAMSTER_REGEX = r'^https?://(?:www\.)?xhamster\.com'
+XVIDEOS_REGEX = r'^https?://(?:www\.)?xvideos\.com'
 
 # Function to sanitize file name for saving
 def sanitize_filename(filename):
@@ -58,6 +63,12 @@ def download_video(url):
         logger.error(f"Error downloading video: {e}")
         return None
 
+# Check if yt_dlp supports the URL
+def is_supported_url(url):
+    ydl = yt_dlp.YoutubeDL()
+    result = ydl.extract_info(url, download=False, process=False)
+    return result is not None
+
 # Background job for downloading videos
 def background_download(url, chat_id):
     video_path = download_video(url)
@@ -66,18 +77,29 @@ def background_download(url, chat_id):
 # Command: /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info("Received /start command")
-    await update.message.reply_text("Welcome! Send me a YouTube video link to download.")
+    await update.message.reply_text("Welcome! Send me a video link from YouTube, XHamster, or Xvideos to download.")
 
 # Handle pasted URLs and start background job
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     url = update.message.text.strip()
 
-    # Check if the URL is a valid YouTube link
-    if not re.match(r'^https?://(?:www\.)?youtube\.com|youtu\.be', url):
-        await update.message.reply_text("Please send a valid YouTube URL.")
+    # Check if the URL matches any supported platforms
+    if re.match(YOUTUBE_REGEX, url):
+        platform = 'YouTube'
+    elif re.match(XHAMSTER_REGEX, url):
+        platform = 'XHamster'
+    elif re.match(XVIDEOS_REGEX, url):
+        platform = 'Xvideos'
+    else:
+        await update.message.reply_text("Please send a valid URL from YouTube, XHamster, or Xvideos.")
         return
 
-    await update.message.reply_text("Downloading video...")
+    await update.message.reply_text(f"Downloading video from {platform}...")
+
+    # Check if yt-dlp supports the URL
+    if not is_supported_url(url):
+        await update.message.reply_text(f"Sorry, downloading from {platform} is not supported at the moment.")
+        return
 
     # Enqueue the background download task
     job = queue.enqueue(background_download, url, update.message.chat.id)
