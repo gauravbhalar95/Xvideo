@@ -3,7 +3,7 @@ import re
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
-import youtube_dl
+import yt_dlp  # Use yt-dlp instead of youtube_dl
 import asyncio
 
 # Apply the patch for nested event loops
@@ -23,7 +23,7 @@ if not WEBHOOK_URL:
 def sanitize_filename(filename):
     return re.sub(r'[\/:*?"<>|]', '', filename)
 
-# Function to download video using youtube_dl
+# Function to download video using yt_dlp
 def download_video(url):
     ydl_opts = {
         'format': 'best',
@@ -34,7 +34,7 @@ def download_video(url):
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
     try:
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
             title = sanitize_filename(info_dict['title'])
             return os.path.join('downloads', f"{title}.{info_dict['ext']}")
