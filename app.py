@@ -3,12 +3,13 @@
 import os
 import re
 import logging
+import yt-dlp
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from rq import Queue
 from redis import Redis
 from tasks import background_download  # Import background task
-import yt-dlp
+
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
