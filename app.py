@@ -8,6 +8,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 from rq import Queue
 from redis import Redis
 from tasks import background_download  # Import background task
+Import yt-dlp
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
