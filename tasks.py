@@ -16,7 +16,7 @@ def download_video(url):
     ydl_opts = {
         'format': 'best[filesize<=50M]',  # Limit the video size to 50 MB
         'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'quiet': True,
+        'quiet': False,  # Show yt-dlp output
         'postprocessors': [{
             'key': 'FFmpegVideoConvertor',
             'preferedformat': 'mp4',  # Convert to mp4 format
@@ -29,6 +29,7 @@ def download_video(url):
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            logger.info(f"Downloading video from: {url}")
             info_dict = ydl.extract_info(url, download=True)
             title = sanitize_filename(info_dict['title'])
             return os.path.join('downloads', f"{title}.{info_dict['ext']}")
@@ -39,4 +40,8 @@ def download_video(url):
 # Background job for downloading videos
 def background_download(url, chat_id):
     video_path = download_video(url)
+    if video_path:
+        logger.info(f"Download completed: {video_path}")
+    else:
+        logger.error("Failed to download the video.")
     return chat_id, video_path
