@@ -21,12 +21,12 @@ COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Expose the port your application will run on
-EXPOSE 8443
+EXPOSE 8000
 
 # Set environment variables (These can also be set in the Koyeb dashboard)
 ENV BOT_TOKEN=7232982155:AAFDc1SGZ3T8ZUiOun4oEbPpQpr3-6zKuAM
 ENV WEBHOOK_URL=https://everyday-nessie-telegramboth-1ba5f30e.koyeb.app/
-ENV PORT=8443
+ENV PORT=8000
 
 # Start the bot
 CMD python app.py
