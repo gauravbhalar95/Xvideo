@@ -23,12 +23,17 @@ if not WEBHOOK_URL:
 def sanitize_filename(filename):
     return re.sub(r'[\/:*?"<>|]', '', filename)
 
-# Function to download video using yt_dlp
+# Function to download video using yt_dlp with ffmpeg
 def download_video(url):
     ydl_opts = {
         'format': 'best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'quiet': True,
+        'postprocessors': [{
+            'key': 'FFmpegVideoConvertor',
+            'preferedformat': 'mp4',  # You can specify the preferred format
+        }],
+        'ffmpeg_location': '/bin/ffmpeg',  # Path to ffmpeg binary
     }
     # Create downloads directory if it doesn't exist
     if not os.path.exists('downloads'):
