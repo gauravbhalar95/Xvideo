@@ -62,12 +62,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # Handle pasted URLs and start background job
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     url = update.message.text.strip()
-    
+
     # Check if the URL is a valid YouTube link
     if not re.match(r'^https?://(?:www\.)?youtube\.com|youtu\.be', url):
         await update.message.reply_text("Please send a valid YouTube URL.")
         return
-    
+
     await update.message.reply_text("Downloading video...")
 
     # Enqueue the background download task
@@ -75,17 +75,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     await update.message.reply_text("Video is being processed in the background. You will receive it shortly!")
 
-# Main function to start the bot
+# Main function to start the bot with webhook or polling based on environment
 def main() -> None:
     # Create the Telegram bot application
     application = ApplicationBuilder().token(TOKEN).build()
 
-    # Register command and message handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # Get the port from the environment variable (default to 8000 if not set)
+    port = int(os.getenv('PORT', 8000))
 
-    # Start the bot with polling
-    application.run_polling()
+    # Set your webhook URL (must be the full URL provided by your hosting platform)
+    WEBHOOK_URL = os.getenv('WEBHOOK_URL')
+
+    if WEBHOOK_URL:
+        # If the webhook URL is set, use webhook mode
+        application.run_webhook(
+            listen="0.0.0.0",  # Listen on all network interfaces
+            port=port,         # Port required by your environment
+            url_path=WEBHOOK_URL.split('/')[-1],
+            webhook_url=WEBHOOK_URL
+        )
+    else:
+        # If no webhook URL, fallback to polling
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+        application.run_polling()
 
 if __name__ == '__main__':
     main()
