@@ -74,6 +74,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     await update.message.reply_text("Video is being processed in the background. You will receive it shortly!")
 
+# Function to handle job results
+def handle_job_result(job):
+    chat_id, video_path = job.result
+    bot = context.bot
+
+    if video_path:
+        try:
+            # Send the video to the user
+            with open(video_path, 'rb') as video_file:
+                bot.send_video(chat_id=chat_id, video=video_file)
+            
+            # Clean up the video file after sending
+            os.remove(video_path)
+        except Exception as e:
+            logger.error(f"Failed to send video: {e}")
+            bot.send_message(chat_id=chat_id, text="There was an error sending the video.")
+    else:
+        bot.send_message(chat_id=chat_id, text="There was an error downloading the video.")
+
 # Main function to start the bot
 def main() -> None:
     # Create the Telegram bot application
