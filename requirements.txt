@@ -13,3 +13,5 @@ uvicorn==0.22.0
 beautifulsoup4
 moviepy
 asyncio
+rq
+redis
