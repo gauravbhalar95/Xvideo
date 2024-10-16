@@ -1,20 +1,27 @@
 import os
 import re
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+import logging
 import yt_dlp  # Use yt-dlp for downloading YouTube videos
 import nest_asyncio
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from rq import Queue
 from redis import Redis
 
 # Apply patch for nested event loops (needed in some environments)
 nest_asyncio.apply()
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Your Telegram bot token from environment variables
 TOKEN = os.getenv('BOT_TOKEN')
-
-# Set up Redis connection (using URL if hosted externally)
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 REDIS_URL = os.getenv('REDIS_URL', 'redis://default:b9pTqUrpgEYvUKcJM3XT3FqpgOyJAX7w@redis-13753.c212.ap-south-1-1.ec2.redns.redis-cloud.com:13753')
+PORT = int(os.getenv('PORT', 8000))
+
+# Set up Redis connection
 redis_conn = Redis.from_url(REDIS_URL)
 queue = Queue(connection=redis_conn)
 
@@ -48,7 +55,8 @@ def download_video(url):
             title = sanitize_filename(info_dict['title'])
             return os.path.join('downloads', f"{title}.{info_dict['ext']}")
     except Exception as e:
-        return str(e)
+        logger.error(f"Error downloading video: {e}")
+        return None
 
 # Background job for downloading videos
 def background_download(url, chat_id):
@@ -57,6 +65,7 @@ def background_download(url, chat_id):
 
 # Command: /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.info("Received /start command")
     await update.message.reply_text("Welcome! Send me a YouTube video link to download.")
 
 # Handle pasted URLs and start background job
@@ -75,30 +84,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     await update.message.reply_text("Video is being processed in the background. You will receive it shortly!")
 
-# Main function to start the bot with webhook or polling based on environment
+# Main function to start the bot
 def main() -> None:
     # Create the Telegram bot application
     application = ApplicationBuilder().token(TOKEN).build()
 
-    # Get the port from the environment variable (default to 8000 if not set)
-    port = int(os.getenv('PORT', 8000))
+    # Register command and message handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Set your webhook URL (must be the full URL provided by your hosting platform)
-    WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-
+    # Check if a webhook URL is set, and run in webhook mode if it is
     if WEBHOOK_URL:
-        # If the webhook URL is set, use webhook mode
         application.run_webhook(
-            listen="0.0.0.0",  # Listen on all network interfaces
-            port=port,         # Port required by your environment
+            listen="0.0.0.0",
+            port=PORT,
             url_path=WEBHOOK_URL.split('/')[-1],
             webhook_url=WEBHOOK_URL
         )
     else:
-        # If no webhook URL, fallback to polling
-        application.add_handler(CommandHandler("start", start))
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
+        # Start the bot with polling
         application.run_polling()
 
 if __name__ == '__main__':
