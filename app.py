@@ -1,5 +1,5 @@
 import os
-import youtube_dl
+import yt_dlp as youtube_dl
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
@@ -17,12 +17,12 @@ if not TOKEN:
 if not WEBHOOK_URL:
     raise ValueError("Error: WEBHOOK_URL is not set")
 
-# Function to download video using youtube_dl
+# Function to download video using yt-dlp
 def download_video(url):
     ydl_opts = {
         'format': 'best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'quiet': True,
+        'quiet': False,  # Set to False to enable logging
     }
 
     # Create downloads directory if it doesn't exist
@@ -33,8 +33,12 @@ def download_video(url):
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
             return os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
+    except youtube_dl.utils.DownloadError as e:
+        return f"DownloadError: {str(e)}"
+    except KeyError as e:
+        return f"KeyError: {str(e)}"
     except Exception as e:
-        return str(e)
+        return f"UnknownError: {str(e)}"
 
 # Command /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
