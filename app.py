@@ -1,5 +1,8 @@
 import os
 import yt_dlp as youtube_dl
+import validators
+import requests
+from urllib.parse import urlparse
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
@@ -21,14 +24,10 @@ if not WEBHOOK_URL:
 # Function to download video using yt-dlp with progress updates
 def download_video(url, format_choice='best'):
     ydl_opts = {
-        'format': 'best',
+        'format': format_choice,
         'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'quiet': True,  # Set to True to disable logging, handled by bot
-        'postprocessors': [{
-            'key': 'FFmpegVideoConvertor',
-            'preferedformat': format_choice,  # Convert to user-selected format
-        }],
-        'ffmpeg_location': '/usr/bin/ffmpeg'  # Adjust if needed
+        'quiet': False,
+        'progress_hooks': [download_progress],
     }
 
     # Create downloads directory if it doesn't exist
@@ -54,57 +53,71 @@ def download_progress(d):
         speed = d['_speed_str']
         print(f"Progress: {percent}, Speed: {speed}, ETA: {eta}")
 
-# Check file size before downloading
-def check_file_size(info_dict, max_size_mb=50):
-    file_size = info_dict.get('filesize', 0) / (1024 * 1024)  # Convert to MB
-    if file_size > max_size_mb:
-        return False, file_size
-    return True, file_size
+# Validate the URL and check if it's a supported video link
+def is_valid_video_link(url):
+    if not validators.url(url):
+        return False, "Invalid URL"
+    
+    parsed_url = urlparse(url)
+    if parsed_url.netloc in ['www.youtube.com', 'youtu.be', 'vimeo.com']:
+        return True, "Valid video URL"
+    return False, "Unsupported video platform"
 
-# Send video thumbnail before downloading
-async def send_thumbnail(update, info_dict):
-    thumbnail_url = info_dict.get('thumbnail')
-    if thumbnail_url:
-        await update.message.reply_photo(photo=thumbnail_url)
+# Resolve shortened URLs like bit.ly
+def resolve_shortened_url(url):
+    try:
+        response = requests.head(url, allow_redirects=True, timeout=5)
+        return response.url
+    except requests.RequestException:
+        return url
 
 # Command /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Welcome! Send me a video link to download. You can also choose the quality by sending '/quality'.")
 
-# Handle video links and quality selection
+# Handle video links
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    url = update.message.text.strip()
+    urls = update.message.text.strip().split()  # Split message to handle multiple URLs
+    
+    for url in urls:
+        url = resolve_shortened_url(url)
+        
+        # Validate URL
+        is_valid, message = is_valid_video_link(url)
+        if not is_valid:
+            await update.message.reply_text(f"Error: {message}")
+            continue
 
-    # Show downloading message
-    await update.message.reply_text("Fetching video information...")
+        # Show fetching message
+        await update.message.reply_text("Fetching video information...")
 
-    # Extract video info without downloading
-    info_dict, _ = download_video(url, format_choice='best')
-    if not info_dict:
-        await update.message.reply_text(f"Error: Could not fetch video information.")
-        return
+        # Extract video info without downloading
+        info_dict, _ = download_video(url, format_choice='best')
+        if not info_dict:
+            await update.message.reply_text(f"Error: Could not fetch video information.")
+            continue
 
-    # Send video thumbnail
-    await send_thumbnail(update, info_dict)
+        # Check file size before downloading
+        is_valid, size = check_file_size(info_dict)
+        if not is_valid:
+            await update.message.reply_text(f"File size ({size:.2f} MB) exceeds the limit.")
+            continue
 
-    # Check file size before downloading
-    is_valid, size = check_file_size(info_dict)
-    if not is_valid:
-        await update.message.reply_text(f"File size ({size:.2f} MB) exceeds the limit.")
-        return
+        # Send video thumbnail
+        await send_thumbnail(update, info_dict)
 
-    # Download the video
-    await update.message.reply_text("Downloading video...")
-    info_dict, video_path = download_video(url)
+        # Download the video
+        await update.message.reply_text("Downloading video...")
+        info_dict, video_path = download_video(url)
 
-    # Check if the video was downloaded successfully
-    if os.path.exists(video_path):
-        with open(video_path, 'rb') as video:
-            await update.message.reply_video(video)
-        os.remove(video_path)  # Remove the file after sending
-        await auto_delete_file(video_path)  # Schedule file deletion
-    else:
-        await update.message.reply_text(f"Error: {video_path}")
+        # Check if the video was downloaded successfully
+        if os.path.exists(video_path):
+            with open(video_path, 'rb') as video:
+                await update.message.reply_video(video)
+            os.remove(video_path)  # Remove the file after sending
+            await auto_delete_file(video_path)  # Schedule file deletion
+        else:
+            await update.message.reply_text(f"Error: {video_path}")
 
 # Video quality selection command
 async def set_quality(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
