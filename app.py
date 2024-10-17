@@ -1,101 +1,52 @@
-# app.py
-
-import os
-import re
 import logging
-import yt_dlp
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-from rq import Queue
-from redis import Redis
-from tasks import background_download  # Import background task
-
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from tasks import background_download  # Import the background task
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
-# Environment variables
-TOKEN = os.getenv('BOT_TOKEN')
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-REDIS_URL = os.getenv('REDIS_URL', 'redis://default:your_redis_url_here')
-PORT = int(os.getenv('PORT', 8000))
+# Start command for the bot
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Welcome! Send a video link to download.")
 
-# Redis connection
-redis_conn = Redis.from_url(REDIS_URL)
-queue = Queue(connection=redis_conn)
+# Command to download video
+async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    url = ' '.join(context.args)
+    
+    if not url:
+        await update.message.reply_text("Please provide a valid URL.")
+        return
 
-# Check bot token
-if not TOKEN:
-    raise ValueError("Error: BOT_TOKEN is not set")
+    await update.message.reply_text(f"Downloading video from {url}...")
 
-# Supported platforms regex
-YOUTUBE_REGEX = r'^https?://(?:www\.)?(youtube\.com|youtu\.be)'
-XHAMSTER_REGEX = r'^https?://(?:www\.)?xhamster\.com'
-XVIDEOS_REGEX = r'^https?://(?:www\.)?xvideos\.com'
-
-# Function to check if yt-dlp supports the URL
-def is_supported_url(url):
-    try:
-        ydl = yt_dlp.YoutubeDL()
-        result = ydl.extract_info(url, download=False, process=False)
-        return result is not None
-    except Exception as e:
-        logger.error(f"URL not supported: {e}")
-        return False
-
-# Command: /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    logger.info("Received /start command")
-    await update.message.reply_text("Welcome! Send me a video link from YouTube, XHamster, or Xvideos to download.")
-
-# Handle pasted URLs and start background job
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    url = update.message.text.strip()
-
-    # Check if the URL matches any supported platforms
-    if re.match(YOUTUBE_REGEX, url):
-        platform = 'YouTube'
-    elif re.match(XHAMSTER_REGEX, url):
-        platform = 'XHamster'
-    elif re.match(XVIDEOS_REGEX, url):
-        platform = 'Xvideos'
+    # Run the download in the background
+    video_path = background_download(url)
+    
+    if video_path:
+        await update.message.reply_text(f"Video downloaded: {video_path}")
+        # You can also send the video back to the user
+        with open(video_path, 'rb') as video_file:
+            await update.message.reply_video(video_file)
     else:
-        await update.message.reply_text("Please send a valid URL from YouTube, XHamster, or Xvideos.")
-        return
+        await update.message.reply_text("Failed to download the video.")
 
-    await update.message.reply_text(f"Downloading video from {platform}...")
+# Main function to run the bot
+async def main():
+    application = ApplicationBuilder().token('BOT_TOKEN').build()
 
-    # Check if yt-dlp supports the URL
-    if not is_supported_url(url):
-        await update.message.reply_text(f"Sorry, downloading from {platform} is not supported at the moment.")
-        return
-
-    # Enqueue the background download task
-    job = queue.enqueue(background_download, url, update.message.chat.id)
-
-    # Provide feedback to the user
-    await update.message.reply_text("Video is being processed in the background. You will receive it shortly!")
-
-# Main function to start the bot
-def main() -> None:
-    # Create the Telegram bot application
-    application = ApplicationBuilder().token(TOKEN).build()
-
-    # Register command and message handlers
+    # Add the start and download command handlers
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(CommandHandler("download", download))
 
-    # Run in webhook or polling mode
-    if WEBHOOK_URL:
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            url_path=WEBHOOK_URL.split('/')[-1],
-            webhook_url=WEBHOOK_URL
-        )
-    else:
-        application.run_polling()
+    # Start the bot
+    await application.start()
+    await application.idle()
 
 if __name__ == '__main__':
-    main()
+    import asyncio
+    asyncio.run(main())
