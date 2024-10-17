@@ -1,4 +1,5 @@
 import logging
+import os
 import asyncio
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -38,7 +39,7 @@ async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Main function to run the bot
 async def main():
     # Replace 'YOUR_BOT_TOKEN' with your actual Telegram bot token
-    bot_token = 'YOUR_BOT_TOKEN'
+    bot_token = os.getenv('BOT_TOKEN')
     
     # Build the application
     application = ApplicationBuilder().token(bot_token).build()
