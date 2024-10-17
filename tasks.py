@@ -1,4 +1,5 @@
 # tasks.py
+
 import yt_dlp
 import re
 import os
@@ -14,7 +15,7 @@ def sanitize_filename(filename):
 # Function to download the video using yt_dlp
 def download_video(url):
     ydl_opts = {
-        'format': 'best[filesize<=50M]',  # Limit the video size to 50 MB
+        'format': 'best',  # Remove the filesize limitation
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'quiet': False,  # Show yt-dlp output
         'postprocessors': [{
@@ -22,6 +23,7 @@ def download_video(url):
             'preferedformat': 'mp4',  # Convert to mp4 format
         }],
         'ffmpeg_location': '/bin/ffmpeg',  # Ensure ffmpeg is installed
+        'noplaylist': True  # Download only one video from playlist if it is a playlist URL
     }
 
     if not os.path.exists('downloads'):
@@ -32,7 +34,9 @@ def download_video(url):
             logger.info(f"Downloading video from: {url}")
             info_dict = ydl.extract_info(url, download=True)
             title = sanitize_filename(info_dict['title'])
-            return os.path.join('downloads', f"{title}.{info_dict['ext']}")
+            video_path = os.path.join('downloads', f"{title}.{info_dict['ext']}")
+            logger.info(f"Downloaded video to {video_path}")
+            return video_path
     except Exception as e:
         logger.error(f"Error downloading video: {e}")
         return None
