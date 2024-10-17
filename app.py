@@ -1,7 +1,8 @@
 import logging
+import asyncio
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from tasks import background_download  # Import the background task
+from tasks import background_download  # Import background task for downloading videos
 
 # Set up logging
 logging.basicConfig(
@@ -10,43 +11,52 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Start command for the bot
+# Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Welcome! Send a video link to download.")
+    await update.message.reply_text("Welcome to the Video Downloader Bot! Send a video link to download.")
 
-# Command to download video
+# Command to download a video
 async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    url = ' '.join(context.args)
-    
+    url = ' '.join(context.args)  # Extract URL from the user's message
     if not url:
-        await update.message.reply_text("Please provide a valid URL.")
+        await update.message.reply_text("Please provide a valid video URL.")
         return
 
     await update.message.reply_text(f"Downloading video from {url}...")
 
-    # Run the download in the background
-    video_path = background_download(url)
+    # Run the download in the background and get the video path
+    video_path = await background_download(url)
     
     if video_path:
-        await update.message.reply_text(f"Video downloaded: {video_path}")
-        # You can also send the video back to the user
+        await update.message.reply_text(f"Video downloaded successfully: {video_path}")
+        # Optionally send the downloaded video back to the user
         with open(video_path, 'rb') as video_file:
             await update.message.reply_video(video_file)
     else:
-        await update.message.reply_text("Failed to download the video.")
+        await update.message.reply_text("Failed to download the video. Please try again.")
 
 # Main function to run the bot
 async def main():
-    application = ApplicationBuilder().token('BOT_TOKEN').build()
+    # Replace 'YOUR_BOT_TOKEN' with your actual Telegram bot token
+    bot_token = 'YOUR_BOT_TOKEN'
+    
+    # Build the application
+    application = ApplicationBuilder().token(bot_token).build()
+    
+    # Initialize the application
+    await application.initialize()
 
-    # Add the start and download command handlers
+    # Add handlers for commands
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("download", download))
 
-    # Start the bot
-    await application.start()
+    # Start polling for updates
+    await application.start_polling()
+    logger.info("Bot is running...")
+
+    # Keep the bot running until it is stopped
     await application.idle()
 
+# Run the bot
 if __name__ == '__main__':
-    import asyncio
     asyncio.run(main())
