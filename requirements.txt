@@ -15,3 +15,4 @@ moviepy
 asyncio
 rq
 redis
+validators
