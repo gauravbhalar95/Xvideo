@@ -24,14 +24,15 @@ if not WEBHOOK_URL:
 # Function to download video using yt-dlp with progress updates
 def download_video(url, format_choice='best'):
     ydl_opts = {
-    'format': 'best',
-    'outtmpl': 'downloads/%(title)s.%(ext)s',
-    'quiet': False,
-    'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0'
-    },
-    'socket_timeout': 30  # Set timeout to 30 seconds
-}
+        'format': 'bestvideo+bestaudio/best',
+        'outtmpl': os.path.join(download_dir, '%(title)s.%(ext)s'),
+        'postprocessors': [{
+            'key': 'FFmpegVideoConvertor',
+            'preferedformat': 'mp4',  # You can change this to your preferred format
+        }],
+        'progress_hooks': [hook],
+        'noplaylist': True,  # Only download single videos, not playlists
+    }
 
 
     # Create downloads directory if it doesn't exist
