@@ -1,63 +1,79 @@
-import logging
 import os
-import asyncio
+import youtube_dl
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from tasks import background_download  # Import background task for downloading videos
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+import nest_asyncio
 
-# Set up logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+# Apply the patch for nested event loops
+nest_asyncio.apply()
 
-# Start command handler
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Welcome to the Video Downloader Bot! Send a video link to download.")
+# Your Telegram bot token and webhook URL from environment variables
+TOKEN = os.getenv('BOT_TOKEN')
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')
+PORT = int(os.getenv('PORT', 8443))  # Default to 8443 if not set
 
-# Command to download a video
-async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    url = ' '.join(context.args)  # Extract URL from the user's message
-    if not url:
-        await update.message.reply_text("Please provide a valid video URL.")
-        return
+if not TOKEN:
+    raise ValueError("Error: BOT_TOKEN is not set")
+if not WEBHOOK_URL:
+    raise ValueError("Error: WEBHOOK_URL is not set")
 
-    await update.message.reply_text(f"Downloading video from {url}...")
+# Function to download video using youtube_dl
+def download_video(url):
+    ydl_opts = {
+        'format': 'best',
+        'outtmpl': 'downloads/%(title)s.%(ext)s',
+        'quiet': True,
+    }
 
-    # Run the download in the background and get the video path
-    video_path = await background_download(url)
-    
-    if video_path:
-        await update.message.reply_text(f"Video downloaded successfully: {video_path}")
-        # Optionally send the downloaded video back to the user
-        with open(video_path, 'rb') as video_file:
-            await update.message.reply_video(video_file)
+    # Create downloads directory if it doesn't exist
+    if not os.path.exists('downloads'):
+        os.makedirs('downloads')
+
+    try:
+        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(url, download=True)
+            return os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
+    except Exception as e:
+        return str(e)
+
+# Command /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text("Welcome! Send me a video link to download.")
+
+# Handle pasted URLs
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    url = update.message.text.strip()
+    await update.message.reply_text("Downloading video...")
+
+    # Call the download_video function
+    video_path = download_video(url)
+
+    # Check if the video was downloaded successfully
+    if os.path.exists(video_path):
+        with open(video_path, 'rb') as video:
+            await update.message.reply_video(video)
+        os.remove(video_path)  # Remove the file after sending
     else:
-        await update.message.reply_text("Failed to download the video. Please try again.")
+        await update.message.reply_text(f"Error: {video_path}")
 
-# Main function to run the bot
-async def main():
-    # Replace 'YOUR_BOT_TOKEN' with your actual Telegram bot token
-    bot_token = os.getenv('BOT_TOKEN')
-    
-    # Build the application
-    application = ApplicationBuilder().token(bot_token).build()
-    
-    # Initialize the application
-    await application.initialize()
+def main() -> None:
+    # Create the application with webhook
+    application = ApplicationBuilder().token(TOKEN).build()
 
-    # Add handlers for commands
+    # Register handlers
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("download", download))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Start polling for updates
-    await application.start_polling()
-    logger.info("Bot is running...")
+    # Extract the webhook path (the token itself is used as the path)
+    url_path = WEBHOOK_URL.split('/')[-1]
 
-    # Keep the bot running until it is stopped
-    await application.idle()
+    # Start the bot using webhook
+    application.run_webhook(
+        listen="0.0.0.0",  # Listen on all network interfaces
+        port=PORT,  # The port from environment variables
+        url_path=url_path,  # Use the path part from WEBHOOK_URL
+        webhook_url=WEBHOOK_URL  # Telegram's webhook URL
+    )
 
-# Run the bot
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()
