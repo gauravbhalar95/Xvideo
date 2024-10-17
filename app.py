@@ -63,7 +63,7 @@ def is_valid_video_link(url):
         return False, "Invalid URL"
     
     parsed_url = urlparse(url)
-    if parsed_url.netloc in ['www.youtube.com', 'youtu.be', 'vimeo.com']:
+    if parsed_url.netloc in ['www.youtube.com', 'youtu.be', 'vimeo.com', 'www.xvideos.com', 'www.xxxymovies.com', 'www.xhamster.com', 'www.instagram.com', 'www.xnxx.com' ]:
         return True, "Valid video URL"
     return False, "Unsupported video platform"
 
