@@ -3,7 +3,7 @@
 import os
 import re
 import logging
-import yt-dlp
+import yt_dlp
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from rq import Queue
