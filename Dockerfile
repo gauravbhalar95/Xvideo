@@ -22,7 +22,7 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 
 # Expose the port (if needed for web apps or bots)
-# EXPOSE 8000 
+# EXPOSE 8080 
 
 # Run the application
 CMD python app.py
