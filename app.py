@@ -21,29 +21,32 @@ if not TOKEN:
 if not WEBHOOK_URL:
     raise ValueError("Error: WEBHOOK_URL is not set")
 
-# Function to download video using yt-dlp with progress updates
+# Function to download video using yt-dlp with progress updates and ffmpeg fix
 def download_video(url, format_choice='best'):
-    # Define the download directory
     download_dir = 'downloads'
-
-    # Create the downloads directory if it doesn't exist
     os.makedirs(download_dir, exist_ok=True)
 
     ydl_opts = {
         'format': 'bestvideo+bestaudio/best',
         'outtmpl': os.path.join(download_dir, '%(title)s.%(ext)s'),
-        'postprocessors': [{
-            'key': 'FFmpegVideoConvertor',
-            'preferedformat': 'mp4',  # You can change this to your preferred format
-        }],
+        'postprocessors': [
+            {
+                'key': 'FFmpegVideoConvertor',
+                'preferredformat': 'mp4',  # Convert to mp4 format
+            },
+            {
+                'key': 'FFmpegFixupM3u8',  # Fix MPEG-TS and AAC timestamp issues
+            }
+        ],
+        'ffmpeg_location': '/bin/ffmpeg',  # Specify ffmpeg location
         'progress_hooks': [hook],
-        'noplaylist': True,  # Only download single videos, not playlists
+        'noplaylist': True,
     }
 
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
-            return info_dict, os.path.join(download_dir, f"{info_dict['title']}.{info_dict['ext']}")
+            return info_dict, os.path.join(download_dir, f"{info_dict['title']}.mp4")
     except youtube_dl.utils.DownloadError as e:
         return None, f"DownloadError: {str(e)}"
     except KeyError as e:
@@ -65,7 +68,12 @@ def is_valid_video_link(url):
         return False, "Invalid URL"
 
     parsed_url = urlparse(url)
-    if parsed_url.netloc in ['www.youtube.com', 'youtu.be', 'vimeo.com', 'xvideos.com', 'xxxymovies.com', 'xhamster.com', 'instagram.com', 'xnxx.com']:
+    supported_sites = [
+        'youtube.com', 'youtu.be', 'vimeo.com', 'xvideos.com', 
+        'xxxymovies.com', 'xhamster.com', 'instagram.com', 'xnxx.com'
+    ]
+    
+    if any(site in parsed_url.netloc for site in supported_sites):
         return True, "Valid video URL"
     return False, "Unsupported video platform"
 
@@ -94,20 +102,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await update.message.reply_text(f"Error: {message}")
             continue
 
-        # Show fetching message
         await update.message.reply_text("Fetching video information...")
 
-        # Extract video info without downloading
-        info_dict, _ = download_video(url, format_choice='best')
+        # Extract video info and download
+        info_dict, _ = download_video(url)
         if not info_dict:
             await update.message.reply_text(f"Error: Could not fetch video information.")
             continue
 
-        # Send video thumbnail (optional step, can be customized)
-        # await send_thumbnail(update, info_dict)
+        await update.message.reply_text("Downloading video...")
 
         # Download the video
-        await update.message.reply_text("Downloading video...")
         info_dict, video_path = download_video(url)
 
         # Check if the video was downloaded successfully
@@ -125,16 +130,21 @@ async def set_quality(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         "Choose a video quality:\n1. best\n2. 1080p\n3. 720p\n4. 480p\n\nSend '/quality <choice>' to select."
     )
 
+# Handle video quality selection
 async def handle_quality_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not context.args:
+        await update.message.reply_text("Please provide a quality choice (1-4).")
+        return
+
     quality_choice = context.args[0]
     if quality_choice == '1':
         context.user_data['quality'] = 'best'
     elif quality_choice == '2':
-        context.user_data['quality'] = '137'
+        context.user_data['quality'] = '137'  # 1080p
     elif quality_choice == '3':
-        context.user_data['quality'] = '136'
+        context.user_data['quality'] = '136'  # 720p
     elif quality_choice == '4':
-        context.user_data['quality'] = '135'
+        context.user_data['quality'] = '135'  # 480p
     else:
         await update.message.reply_text("Invalid choice.")
         return
@@ -146,25 +156,23 @@ async def auto_delete_file(file_path, delay=3600):
     if os.path.exists(file_path):
         os.remove(file_path)
 
+# Main function
 def main() -> None:
-    # Create the application with webhook
     application = ApplicationBuilder().token(TOKEN).build()
 
     # Register handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("quality", set_quality))
-    application.add_handler(CommandHandler("quality", handle_quality_selection))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(CommandHandler("quality", handle_quality_selection))
 
-    # Extract the webhook path (the token itself is used as the path)
+    # Start webhook
     url_path = WEBHOOK_URL.split('/')[-1]
-
-    # Start the bot using webhook
     application.run_webhook(
-        listen="0.0.0.0",  # Listen on all network interfaces
-        port=PORT,  # The port from environment variables
-        url_path=url_path,  # Use the path part from WEBHOOK_URL
-        webhook_url=WEBHOOK_URL  # Telegram's webhook URL
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=url_path,
+        webhook_url=WEBHOOK_URL
     )
 
 if __name__ == '__main__':
