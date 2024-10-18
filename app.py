@@ -33,6 +33,7 @@ def download_video(url, format_choice='best'):
             'key': 'FFmpegVideoConvertor',
             'preferedformat': 'mkv',
         }],
+        'ffmpeg_location': '/bin/ffmpeg',
         'progress_hooks': [hook],
         'noplaylist': True,
     }
