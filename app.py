@@ -27,7 +27,7 @@ def download_video(url, format_choice='best'):
     os.makedirs(download_dir, exist_ok=True)
 
     ydl_opts = {
-        'format': 'bestvideo+bestaudio/best',
+        'format': 'best',
         'outtmpl': os.path.join(download_dir, '%(title)s.%(ext)s'),
         'postprocessors': [{
             'key': 'FFmpegVideoConvertor',
