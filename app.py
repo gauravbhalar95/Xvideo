@@ -31,7 +31,7 @@ def download_video(url, format_choice='best'):
         'outtmpl': os.path.join(download_dir, '%(title)s.%(ext)s'),
         'postprocessors': [{
             'key': 'FFmpegVideoConvertor',
-            'preferedformat': 'mp4',
+            'preferedformat': 'mkv',
         }],
         'progress_hooks': [hook],
         'noplaylist': True,
