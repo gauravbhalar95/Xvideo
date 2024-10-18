@@ -1,1 +1,0 @@
-web: install_ffmpeg.sh && python3 app.py
