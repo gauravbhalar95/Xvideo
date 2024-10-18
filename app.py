@@ -27,30 +27,30 @@ def download_video(url, format_choice='best'):
     os.makedirs(download_dir, exist_ok=True)
 
     ydl_opts = {
-        'format': format_choice,
+        'format': 'bestvideo+bestaudio/best',
         'outtmpl': os.path.join(download_dir, '%(title)s.%(ext)s'),
         'postprocessors': [{
             'key': 'FFmpegVideoConvertor',
             'preferedformat': 'mp4',
         }],
-        'ffmpeg_location': '/bin/ffmpeg',
         'progress_hooks': [hook],
         'noplaylist': True,
     }
 
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(url, download=False)  # Only fetch info first
-            return info_dict, None
+            info_dict = ydl.extract_info(url, download=True)
+            return info_dict, os.path.join(download_dir, f"{info_dict['title']}.{info_dict['ext']}")
     except youtube_dl.utils.DownloadError as e:
-        print(f"DownloadError: {str(e)}")  # Verbose logging
-        return None, f"DownloadError: {str(e)}"
+        print(f"DownloadError: {str(e)}")
+        return None, None
     except KeyError as e:
-        print(f"KeyError: {str(e)}")  # Verbose logging
-        return None, f"KeyError: {str(e)}"
+        print(f"KeyError: {str(e)}")
+        return None, None
     except Exception as e:
-        print(f"UnknownError: {str(e)}")  # Verbose logging
-        return None, f"UnknownError: {str(e)}"
+        print(f"UnknownError: {str(e)}")
+        return None, None
+
 
 
 # Progress bar function
