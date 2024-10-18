@@ -23,6 +23,12 @@ if not WEBHOOK_URL:
 
 # Function to download video using yt-dlp with progress updates
 def download_video(url, format_choice='best'):
+    # Define the download directory
+    download_dir = 'downloads'
+
+    # Create the downloads directory if it doesn't exist
+    os.makedirs(download_dir, exist_ok=True)
+
     ydl_opts = {
         'format': 'bestvideo+bestaudio/best',
         'outtmpl': os.path.join(download_dir, '%(title)s.%(ext)s'),
@@ -34,15 +40,10 @@ def download_video(url, format_choice='best'):
         'noplaylist': True,  # Only download single videos, not playlists
     }
 
-
-    # Create downloads directory if it doesn't exist
-    if not os.path.exists('downloads'):
-        os.makedirs('downloads')
-
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
-            return info_dict, os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
+            return info_dict, os.path.join(download_dir, f"{info_dict['title']}.{info_dict['ext']}")
     except youtube_dl.utils.DownloadError as e:
         return None, f"DownloadError: {str(e)}"
     except KeyError as e:
@@ -51,7 +52,7 @@ def download_video(url, format_choice='best'):
         return None, f"UnknownError: {str(e)}"
 
 # Progress bar function
-def download_progress(d):
+def hook(d):
     if d['status'] == 'downloading':
         percent = d['_percent_str']
         eta = d['eta']
@@ -62,9 +63,9 @@ def download_progress(d):
 def is_valid_video_link(url):
     if not validators.url(url):
         return False, "Invalid URL"
-    
+
     parsed_url = urlparse(url)
-    if parsed_url.netloc in ['www.youtube.com', 'youtu.be', 'vimeo.com', 'xvideos.com', 'xxxymovies.com', 'xhamster.com', 'instagram.com', 'xnxx.com' ]:
+    if parsed_url.netloc in ['www.youtube.com', 'youtu.be', 'vimeo.com', 'xvideos.com', 'xxxymovies.com', 'xhamster.com', 'instagram.com', 'xnxx.com']:
         return True, "Valid video URL"
     return False, "Unsupported video platform"
 
@@ -83,10 +84,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # Handle video links
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     urls = update.message.text.strip().split()  # Split message to handle multiple URLs
-    
+
     for url in urls:
         url = resolve_shortened_url(url)
-        
+
         # Validate URL
         is_valid, message = is_valid_video_link(url)
         if not is_valid:
@@ -102,14 +103,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await update.message.reply_text(f"Error: Could not fetch video information.")
             continue
 
-        # Check file size before downloading
-        is_valid, size = check_file_size(info_dict)
-        if not is_valid:
-            await update.message.reply_text(f"File size ({size:.2f} MB) exceeds the limit.")
-            continue
-
-        # Send video thumbnail
-        await send_thumbnail(update, info_dict)
+        # Send video thumbnail (optional step, can be customized)
+        # await send_thumbnail(update, info_dict)
 
         # Download the video
         await update.message.reply_text("Downloading video...")
@@ -122,7 +117,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             os.remove(video_path)  # Remove the file after sending
             await auto_delete_file(video_path)  # Schedule file deletion
         else:
-            await update.message.reply_text(f"Error: {video_path}")
+            await update.message.reply_text(f"Error: Could not find {video_path}")
 
 # Video quality selection command
 async def set_quality(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
