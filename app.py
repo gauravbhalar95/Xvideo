@@ -14,7 +14,7 @@ nest_asyncio.apply()
 # Your Telegram bot token and webhook URL from environment variables
 TOKEN = os.getenv('BOT_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-PORT = int(os.getenv('PORT', 8080))  # Default to 8443 if not set
+PORT = int(os.getenv('PORT', 8080))  # Default to 8080 if not set
 
 if not TOKEN:
     raise ValueError("Error: BOT_TOKEN is not set")
@@ -41,7 +41,7 @@ def download_video(url, format_choice='best'):
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
-            return info_dict, os.path.join(download_dir, f"{info_dict['title']}.{info_dict['ext']}")
+            return info_dict, os.path.join(download_dir, f"{info_dict['title']}.mkv")
     except youtube_dl.utils.DownloadError as e:
         print(f"DownloadError: {str(e)}")
         return None, None
@@ -51,8 +51,6 @@ def download_video(url, format_choice='best'):
     except Exception as e:
         print(f"UnknownError: {str(e)}")
         return None, None
-
-
 
 # Progress bar function
 def hook(d):
@@ -72,7 +70,7 @@ def is_valid_video_link(url):
         'youtube.com', 'youtu.be', 'vimeo.com', 'xvideos.com', 
         'xxxymovies.com', 'xhamster.com', 'instagram.com', 'xnxx.com'
     ]
-    
+
     if any(site in parsed_url.netloc for site in supported_sites):
         return True, "Valid video URL"
     return False, "Unsupported video platform"
