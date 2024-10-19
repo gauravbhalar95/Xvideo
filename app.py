@@ -27,17 +27,17 @@ def download_video(url):
     os.makedirs(download_dir, exist_ok=True)
 
     ydl_opts = {
-        'format': 'best',
-        'outtmpl': os.path.join(download_dir, '%(title)s.%(ext)s'),
-        'postprocessors': [{
-            'key': 'FFmpegVideoConvertor',
-            'preferredformat': 'mkv',
-        }],
-        'ffmpeg_location': '/usr/bin/ffmpeg',  # Ensure correct ffmpeg path
-        'progress_hooks': [hook],
-        'noplaylist': True,
-        'retries': 3,  # Adding retries for network-related errors
-    }
+    'format': 'best',
+    'outtmpl': os.path.join(download_dir, '%(title)s.%(ext)s'),
+    'postprocessors': [{
+        'key': 'FFmpegVideoRemuxer',  # Remux the video to another container format
+        'preferedformat': 'mkv',      # Use 'preferedformat' instead of 'preferredformat'
+    }],
+    'ffmpeg_location': '/bin/ffmpeg',  # Make sure ffmpeg is installed
+    'progress_hooks': [hook],
+    'noplaylist': True,
+}
+
 
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
