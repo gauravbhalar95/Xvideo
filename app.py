@@ -33,9 +33,10 @@ def download_video(url):
             'key': 'FFmpegVideoConvertor',
             'preferredformat': 'mkv',
         }],
-        'ffmpeg_location': '/bin/ffmpeg',
+        'ffmpeg_location': '/usr/bin/ffmpeg',  # Ensure correct ffmpeg path
         'progress_hooks': [hook],
         'noplaylist': True,
+        'retries': 3,  # Adding retries for network-related errors
     }
 
     try:
@@ -67,8 +68,8 @@ def is_valid_video_link(url):
 
     parsed_url = urlparse(url)
     supported_sites = [
-        'youtube.com', 'youtu.be', 'vimeo.com', 'xvideos.com', 
-        'xxxymovies.com', 'xhamster.com', 'instagram.com', 'xnxx.com'
+        'youtube.com', 'youtu.be', 'vimeo.com', 'instagram.com', 
+        'xvideos.com', 'xhamster.com', 'xnxx.com'
     ]
 
     if any(site in parsed_url.netloc for site in supported_sites):
