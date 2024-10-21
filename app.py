@@ -25,10 +25,12 @@ if not WEBHOOK_URL:
 def download_video(url):
     download_dir = 'downloads'
     os.makedirs(download_dir, exist_ok=True)
+    cookies_file = 'cookies.txt'
 
     ydl_opts = {
     'format': 'best',
     'outtmpl': os.path.join(download_dir, '%(title)s.%(ext)s'),
+    'cookiefile': cookies_file,
     'postprocessors': [{
         'key': 'FFmpegVideoRemuxer',  # Remux the video to another container format
         'preferedformat': 'mkv',      # Use 'preferedformat' instead of 'preferredformat'
