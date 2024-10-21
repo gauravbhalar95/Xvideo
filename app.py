@@ -38,7 +38,7 @@ def download_video(url):
         'ffmpeg_location': '/bin/ffmpeg',  # Make sure ffmpeg is installed
         'progress_hooks': [hook],
         'noplaylist': True,
-        'socket_timeout': 30,
+        'socket_timeout': 60,
     }
 
     try:
