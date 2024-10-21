@@ -24,27 +24,28 @@ if not WEBHOOK_URL:
 # Function to download video using yt-dlp with progress updates and ffmpeg fix
 def download_video(url):
     download_dir = 'downloads'
-    os.makedirs(download_dir, exist_ok=True)
+    os.makedirs(download_dir, exist_ok=True)  # Ensure the directory exists
     cookies_file = 'cookies.txt'
 
     ydl_opts = {
-    'format': 'best',
-    'outtmpl': os.path.join(download_dir, '%(title)s.%(ext)s'),
-    'cookiefile': cookies_file,
-    'postprocessors': [{
-        'key': 'FFmpegVideoRemuxer',  # Remux the video to another container format
-        'preferedformat': 'mkv',      # Use 'preferedformat' instead of 'preferredformat'
-    }],
-    'ffmpeg_location': '/bin/ffmpeg',  # Make sure ffmpeg is installed
-    'progress_hooks': [hook],
-    'noplaylist': True,
-}
-
+        'format': 'best',
+        'outtmpl': os.path.join(download_dir, '%(title)s.%(ext)s'),
+        'cookiefile': cookies_file,
+        'postprocessors': [{
+            'key': 'FFmpegVideoRemuxer',  # Remux the video to another container format
+            'preferedformat': 'mkv',      # Use 'preferedformat' instead of 'preferredformat'
+        }],
+        'ffmpeg_location': '/bin/ffmpeg',  # Make sure ffmpeg is installed
+        'progress_hooks': [hook],
+        'noplaylist': True,
+    }
 
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
-            return info_dict, os.path.join(download_dir, f"{info_dict['title']}.{info_dict['ext']}")
+            file_path = os.path.join(download_dir, f"{info_dict['title']}.mkv")
+            print(f"Downloaded file path: {file_path}")  # Debug log
+            return info_dict, file_path
     except youtube_dl.utils.DownloadError as e:
         print(f"DownloadError: {str(e)}")
         return None, None
@@ -115,10 +116,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         # Check if the video was downloaded successfully
         if os.path.exists(video_path):
-            with open(video_path, 'rb') as video:
-                await update.message.reply_video(video)
-            os.remove(video_path)  # Remove the file after sending
+            print(f"File exists at path: {video_path}")  # Debug log
+
+            try:
+                with open(video_path, 'rb') as video:
+                    await update.message.reply_video(video)
+                    await update.message.reply_text("Video sent successfully!")
+            except Exception as e:
+                await update.message.reply_text(f"Error: Failed to send video. {str(e)}")
+            finally:
+                # Always delete the file whether it was sent successfully or not
+                try:
+                    os.remove(video_path)
+                    print(f"Deleted file at path: {video_path}")  # Debug log
+                except Exception as e:
+                    print(f"Error deleting file: {str(e)}")
         else:
+            print(f"File not found at: {video_path}")  # Debug log
             await update.message.reply_text("Error: Could not find the downloaded video.")
 
 # Main function
