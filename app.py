@@ -12,17 +12,20 @@ TOKEN = os.getenv('BOT_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 PORT = int(os.getenv('PORT', 8443))  # Default to 8443 if not set
 
+# Path to the cookies file
+cookies_file = 'cookies.txt'  # Make sure you place the cookies.txt file in your project directory
+
 if not TOKEN:
     raise ValueError("Error: BOT_TOKEN is not set")
 if not WEBHOOK_URL:
     raise ValueError("Error: WEBHOOK_URL is not set")
 
-# Function to download video using youtube_dl
+# Function to download video using youtube_dl with cookies
 def download_video(url):
     ydl_opts = {
         'format': 'best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'cookiefile': cookies_file,  # Use cookie file if required for authentication
+        'cookiefile': cookies_file,  # Use cookie file for authentication
         'postprocessors': [{
             'key': 'FFmpegVideoConvertor',
         }],
