@@ -1,5 +1,6 @@
 import os
-import youtube_dl
+import re
+import yt_dlp
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
@@ -11,6 +12,7 @@ nest_asyncio.apply()
 TOKEN = os.getenv('BOT_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 PORT = int(os.getenv('PORT', 8443))  # Default to 8443 if not set
+cookies_file = 'cookies.txt'  # Assuming cookies.txt is present in the root directory
 
 # Debugging: Check if TOKEN and WEBHOOK_URL are retrieved correctly
 print(f"TOKEN: {TOKEN}")
@@ -22,12 +24,13 @@ if not TOKEN:
 if not WEBHOOK_URL:
     raise ValueError("Error: WEBHOOK_URL is not set")
 
-# Function to download video using youtube_dl with cookies
-cookies_file = 'cookies.txt'  # Assuming cookies.txt is present in the root directory
+# Regex pattern to capture video title, quality, and duration
+video_pattern = r"(1080p)?(.+?)(\d+\smin)"
 
+# Function to download video using yt_dlp with cookies
 def download_video(url):
     ydl_opts = {
-        'format': 'best',
+        'format': 'bestvideo[height<=1080]+bestaudio/best',  # Ensure 1080p or lower
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'cookiefile': cookies_file,  # Use cookie file for authentication
         'postprocessors': [{
@@ -43,31 +46,43 @@ def download_video(url):
         os.makedirs('downloads')
 
     try:
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
             return os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
     except Exception as e:
-        return str(e)
+        return f"Error: {str(e)}"
 
 # Command /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Welcome! Send me a video link to download.")
+    await update.message.reply_text("Welcome! Send me a video link or content with URLs to download.")
 
-# Handle pasted URLs
+# Handle pasted URLs or text content
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    url = update.message.text.strip()
-    await update.message.reply_text("Downloading video...")
+    message_text = update.message.text.strip()
 
-    # Call the download_video function
-    video_path = download_video(url)
+    # Search for video URLs or descriptions using regex pattern
+    matches = re.findall(video_pattern, message_text)
+    
+    if not matches:
+        await update.message.reply_text("No valid video URLs or descriptions found.")
+        return
 
-    # Check if the video was downloaded successfully
-    if os.path.exists(video_path):
-        with open(video_path, 'rb') as video:
-            await update.message.reply_video(video)
-        os.remove(video_path)  # Remove the file after sending
-    else:
-        await update.message.reply_text(f"Error: {video_path}")
+    for match in matches:
+        quality, title, duration = match
+        # Assume URL format or extract if it's found in the content
+        video_url = f"https://1440pAss fuck and creampie - Homemade compilation 10 min/{title.strip().replace(' ', '_')}"  # Placeholder: Replace with actual URL extraction logic
+        await update.message.reply_text(f"Downloading video '{title.strip()}'...")
+
+        # Call the download_video function
+        video_path = download_video(video_url)
+
+        # Check if the video was downloaded successfully
+        if os.path.exists(video_path):
+            with open(video_path, 'rb') as video:
+                await update.message.reply_video(video)
+            os.remove(video_path)  # Remove the file after sending
+        else:
+            await update.message.reply_text(f"Error: {video_path}")
 
 def main() -> None:
     # Create the application with webhook
