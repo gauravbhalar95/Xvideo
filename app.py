@@ -12,15 +12,19 @@ TOKEN = os.getenv('BOT_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 PORT = int(os.getenv('PORT', 8443))  # Default to 8443 if not set
 
-# Path to the cookies file
-cookies_file = 'cookies.txt'  # Make sure you place the cookies.txt file in your project directory
+# Debugging: Check if TOKEN and WEBHOOK_URL are retrieved correctly
+print(f"TOKEN: {TOKEN}")
+print(f"WEBHOOK_URL: {WEBHOOK_URL}")
 
+# Check if TOKEN and WEBHOOK_URL are set
 if not TOKEN:
     raise ValueError("Error: BOT_TOKEN is not set")
 if not WEBHOOK_URL:
     raise ValueError("Error: WEBHOOK_URL is not set")
 
 # Function to download video using youtube_dl with cookies
+cookies_file = 'cookies.txt'  # Assuming cookies.txt is present in the root directory
+
 def download_video(url):
     ydl_opts = {
         'format': 'best',
@@ -72,8 +76,11 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Extract the webhook path (the token itself is used as the path)
-    url_path = WEBHOOK_URL.split('/')[-1]
+    # Ensure WEBHOOK_URL is not None before splitting
+    if WEBHOOK_URL:
+        url_path = WEBHOOK_URL.split('/')[-1]
+    else:
+        raise ValueError("Error: WEBHOOK_URL is not set or invalid")
 
     # Start the bot using webhook
     application.run_webhook(
