@@ -32,6 +32,7 @@ def download_video(url):
         'cookiefile': cookies_file,  # Use cookie file for authentication
         'postprocessors': [{
             'key': 'FFmpegVideoConvertor',
+            'preferedformat': 'mp4',
         }],
         'socket_timeout': 10,
         'retries': 5,  # Retry on download errors
