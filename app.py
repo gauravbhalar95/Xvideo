@@ -33,7 +33,7 @@ def download_video(url):
         'cookiefile': cookies_file,
         'postprocessors': [{
             'key': 'FFmpegVideoRemuxer',  # Remux the video to another container format
-            'preferedformat': 'mkv',      # Use 'preferedformat' instead of 'preferredformat'
+            'preferedformat': 'mp4',      # Use 'preferedformat' instead of 'preferredformat'
         }],
         'ffmpeg_location': '/bin/ffmpeg',  # Make sure ffmpeg is installed
         'progress_hooks': [hook],
