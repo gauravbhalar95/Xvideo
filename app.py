@@ -55,19 +55,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Handle pasted URLs
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    url = update.message.text.strip()
-    await update.message.reply_text("Downloading video...")
+    if update.message and update.message.text:  # Ensure message and text are not None
+        url = update.message.text.strip()
+        await update.message.reply_text("Downloading video...")
 
-    # Call the download_video function
-    video_path = download_video(url)
+        # Call the download_video function
+        video_path = download_video(url)
 
-    # Check if the video was downloaded successfully
-    if os.path.exists(video_path):
-        with open(video_path, 'rb') as video:
-            await update.message.reply_video(video)
-        os.remove(video_path)  # Remove the file after sending
+        # Check if the video was downloaded successfully
+        if os.path.exists(video_path):
+            with open(video_path, 'rb') as video:
+                await update.message.reply_video(video)
+            os.remove(video_path)  # Remove the file after sending
+        else:
+            await update.message.reply_text(f"Error: {video_path}")
     else:
-        await update.message.reply_text(f"Error: {video_path}")
+        # Handle the case where the message or text is None
+        await update.message.reply_text("Please send a valid video link.")
 
 def main() -> None:
     # Create the application with webhook
