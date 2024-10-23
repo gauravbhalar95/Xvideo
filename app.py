@@ -27,7 +27,7 @@ cookies_file = 'cookies.txt'  # Assuming cookies.txt is present in the root dire
 
 def download_video(url):
     ydl_opts = {
-        'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
+        'format': 'best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'cookiefile': cookies_file,  # Use cookie file for authentication
         'postprocessors': [{
