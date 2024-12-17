@@ -16,3 +16,4 @@ asyncio
 rq
 redis
 validators
+mega.py
