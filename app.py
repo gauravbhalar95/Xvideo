@@ -11,16 +11,20 @@ nest_asyncio.apply()
 TOKEN = os.getenv('BOT_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 PORT = int(os.getenv('PORT', 8443))  # Default to 8443 if not set
+CHANNEL_NAME = os.getenv('CHANNEL_NAME')  # Telegram channel username (e.g., @mychannel)
 
-# Debugging: Check if TOKEN and WEBHOOK_URL are retrieved correctly
+# Debugging: Check if TOKEN, WEBHOOK_URL, and CHANNEL_NAME are retrieved correctly
 print(f"TOKEN: {TOKEN}")
 print(f"WEBHOOK_URL: {WEBHOOK_URL}")
+print(f"CHANNEL_NAME: {CHANNEL_NAME}")
 
-# Check if TOKEN and WEBHOOK_URL are set
+# Check if required variables are set
 if not TOKEN:
     raise ValueError("Error: BOT_TOKEN is not set")
 if not WEBHOOK_URL:
     raise ValueError("Error: WEBHOOK_URL is not set")
+if not CHANNEL_NAME:
+    raise ValueError("Error: CHANNEL_NAME is not set")
 
 # Function to download video using youtube_dl with cookies
 cookies_file = 'cookies.txt'  # Assuming cookies.txt is present in the root directory
@@ -64,9 +68,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         # Check if the video was downloaded successfully
         if os.path.exists(video_path):
+            # Post the video to the channel
             with open(video_path, 'rb') as video:
-                await update.message.reply_video(video)
+                await context.bot.send_video(chat_id=CHANNEL_NAME, video=video)
             os.remove(video_path)  # Remove the file after sending
+            await update.message.reply_text("Video has been successfully posted to the channel!")
         else:
             await update.message.reply_text(f"Error: {video_path}")
     else:
