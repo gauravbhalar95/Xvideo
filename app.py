@@ -1,105 +1,214 @@
 import os
-import youtube_dl
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-import nest_asyncio
+import logging
+from flask import Flask, request
+import telebot
+import yt_dlp
+import re
+from urllib.parse import urlparse, parse_qs
+from mega import Mega  # Mega.nz Python library
 
-# Apply the patch for nested event loops
-nest_asyncio.apply()
+# Load environment variables
+API_TOKEN_2 = os.getenv('API_TOKEN_2')
+CHANNEL_ID = os.getenv('CHANNEL_ID')  # Example: '@YourChannel'
+KOYEB_URL = os.getenv('KOYEB_URL')  # Koyeb URL for webhook
 
-# Your Telegram bot token and webhook URL from environment variables
-TOKEN = os.getenv('BOT_TOKEN')
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-PORT = int(os.getenv('PORT', 8443))  # Default to 8443 if not set
-CHANNEL_ID = os.getenv('CHANNEL_ID')  # Private channel chat ID (e.g., -1001234567890)
+# Initialize bot
+bot2 = telebot.TeleBot(API_TOKEN_2, parse_mode='HTML')
 
-# Debugging: Check if TOKEN, WEBHOOK_URL, and CHANNEL_ID are retrieved correctly
-print(f"TOKEN: {TOKEN}")
-print(f"WEBHOOK_URL: {WEBHOOK_URL}")
-print(f"CHANNEL_ID: {CHANNEL_ID}")
+# Directories
+output_dir = 'downloads/'
+cookies_file = 'cookies.txt'
 
-# Check if required variables are set
-if not TOKEN:
-    raise ValueError("Error: BOT_TOKEN is not set")
-if not WEBHOOK_URL:
-    raise ValueError("Error: WEBHOOK_URL is not set")
-if not CHANNEL_ID:
-    raise ValueError("Error: CHANNEL_ID is not set")
+# Ensure downloads directory exists
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
-# Function to download video using youtube_dl with cookies
-cookies_file = 'cookies.txt'  # Assuming cookies.txt is present in the root directory
+# Logging configuration
+logging.basicConfig(level=logging.DEBUG)
 
-def download_video(url):
+# Supported domains
+SUPPORTED_DOMAINS = ['youtube.com', 'youtu.be', 'instagram.com', 'x.com', 'facebook.com', 'instagram:user.com', 'instagram:story.com', 'Popcorntimes.com', 'PopcornTV.com', 'Pornbox.com', 'XXXYMovies.com', 'VuClip.com', 'XHamster.com', 'XNXX.com', 'XVideos.com']
+
+# Mega client
+mega_client = None
+
+# Sanitize filenames for downloaded files
+def sanitize_filename(filename, max_length=250):
+    filename = re.sub(r'[\\/*?:"<>|]', "", filename)
+    return filename.strip()[:max_length]
+
+# Check if a URL is valid and supported
+def is_valid_url(url):
+    try:
+        result = urlparse(url)
+        return result.scheme in ['http', 'https'] and any(domain in result.netloc for domain in SUPPORTED_DOMAINS)
+    except ValueError:
+        return False
+
+# Download media using yt-dlp
+def download_media(url, start_time=None, end_time=None):
     ydl_opts = {
-        'format': 'best',
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'cookiefile': cookies_file,  # Use cookie file for authentication
-        'postprocessors': [{
-            'key': 'FFmpegVideoConvertor',
-            'preferedformat': 'mp4',
-        }],
+        'format': 'best[ext=mp4]/best',
+        'outtmpl': f'{output_dir}{sanitize_filename("%(title)s")}.%(ext)s',
+        'cookiefile': cookies_file,
+        'postprocessors': [{'key': 'FFmpegVideoConvertor', 'preferedformat': 'mp4'}],
         'socket_timeout': 10,
-        'retries': 5,  # Retry on download errors
+        'retries': 5,
     }
 
-    # Create downloads directory if it doesn't exist
-    if not os.path.exists('downloads'):
-        os.makedirs('downloads')
+    if start_time and end_time:
+        ydl_opts['postprocessor_args'] = ['-ss', start_time, '-to', end_time]
 
     try:
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
-            return os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
+            file_path = ydl.prepare_filename(info_dict)
+        return file_path
     except Exception as e:
-        return str(e)
+        logging.error("yt-dlp download error", exc_info=True)
+        raise
 
-# Command /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Welcome! Send me a video link to download.")
+# Upload file to Mega.nz
+def upload_to_mega(file_path):
+    if mega_client is None:
+        raise Exception("Mega client is not logged in. Use /meganz <username> <password> to log in.")
 
-# Handle pasted URLs
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.message and update.message.text:  # Ensure message and text are not None
-        url = update.message.text.strip()
-        await update.message.reply_text("Downloading video...")
+    try:
+        file = mega_client.upload(file_path)
+        public_link = mega_client.get_upload_link(file)
+        return public_link
+    except Exception as e:
+        logging.error("Error uploading to Mega", exc_info=True)
+        raise
 
-        # Call the download_video function
-        video_path = download_video(url)
+# Handle download and upload logic
+def handle_download_and_upload(message, url, upload_to_mega_flag):
+    if not is_valid_url(url):
+        bot2.reply_to(message, "Invalid or unsupported URL. Supported platforms: YouTube, Instagram, Twitter, Facebook.")
+        return
 
-        # Check if the video was downloaded successfully
-        if os.path.exists(video_path):
-            # Post the video to the private channel
-            with open(video_path, 'rb') as video:
-                await context.bot.send_video(chat_id=int(CHANNEL_ID), video=video)
-            os.remove(video_path)  # Remove the file after sending
-            await update.message.reply_text("Video has been successfully posted to the private channel!")
+    try:
+        bot2.reply_to(message, "Downloading the video, please wait...")
+
+        # Extract start and end times if provided in the YouTube URL
+        parsed_url = urlparse(url)
+        query_params = parse_qs(parsed_url.query)
+        start_time = query_params.get('start', [None])[0]
+        end_time = query_params.get('end', [None])[0]
+
+        # Download media
+        file_path = download_media(url, start_time, end_time)
+
+        if upload_to_mega_flag:
+            # Upload to Mega.nz
+            bot2.reply_to(message, "Uploading the video to Mega.nz, please wait...")
+            mega_link = upload_to_mega(file_path)
+            bot2.reply_to(message, f"Video has been uploaded to Mega.nz: {mega_link}")
         else:
-            await update.message.reply_text(f"Error: {video_path}")
+            # Send video directly
+            with open(file_path, 'rb') as video:
+                bot2.send_video(message.chat.id, video)
+
+        # Cleanup
+        os.remove(file_path)
+    except Exception as e:
+        logging.error("Download or upload failed", exc_info=True)
+        bot2.reply_to(message, f"Download or upload failed: {str(e)}")
+
+# Mega login command
+@bot2.message_handler(commands=['meganz'])
+def handle_mega_login(message):
+    try:
+        args = message.text.split(maxsplit=2)
+        if len(args) < 3:
+            bot2.reply_to(message, "Usage: /meganz <username> <password>")
+            return
+
+        username = args[1]
+        password = args[2]
+
+        global mega_client
+        mega_client = Mega().login(username, password)
+        bot2.reply_to(message, "Successfully logged in to Mega.nz!")
+    except Exception as e:
+        bot2.reply_to(message, f"Login failed: {str(e)}")
+
+# Download and upload to Mega.nz
+@bot2.message_handler(commands=['mega'])
+def handle_mega(message):
+    try:
+        args = message.text.split(maxsplit=1)
+        if len(args) < 2:
+            bot2.reply_to(message, "Usage: /mega <URL>")
+            return
+
+        url = args[1]
+        handle_download_and_upload(message, url, upload_to_mega_flag=True)
+    except IndexError:
+        bot2.reply_to(message, "Please provide a valid URL after the command: /mega <URL>.")
+
+# Add /profile command to fetch Instagram profile and download all posts
+@bot2.message_handler(commands=['profile'])
+def handle_instagram_profile(message):
+    try:
+        args = message.text.split(maxsplit=1)
+        if len(args) < 2:
+            bot2.reply_to(message, "Usage: /profile <Instagram Profile URL>")
+            return
+
+        profile_url = args[1].strip()
+
+        # Check if the URL is a valid Instagram profile link
+        if 'instagram.com' not in profile_url or '/p/' in profile_url:
+            bot2.reply_to(message, "Please provide a valid Instagram profile URL (not a post or reel).")
+            return
+
+        bot2.reply_to(message, "Fetching posts from the Instagram profile, please wait...")
+
+        # Set yt-dlp options for profile download
+        ydl_opts = {
+            'format': 'best[ext=mp4]/best',
+            'outtmpl': f'{output_dir}{sanitize_filename("%(uploader)s")}/%(title)s.%(ext)s',
+            'cookiefile': cookies_file,
+            'socket_timeout': 10,
+            'retries': 5,
+            'quiet': False,
+            'extract_flat': False,  # Ensure full download
+        }
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info_dict = ydl.extract_info(profile_url, download=True)
+                bot2.reply_to(message, f"Successfully downloaded all posts from {info_dict['uploader']}'s profile.")
+        except Exception as e:
+            logging.error("yt-dlp Instagram profile download error", exc_info=True)
+            bot2.reply_to(message, f"Failed to download posts: {str(e)}")
+    except Exception as e:
+        logging.error("Instagram profile handler error", exc_info=True)
+        bot2.reply_to(message, f"An error occurred: {str(e)}")
+
+# Direct download without Mega.nz
+@bot2.message_handler(func=lambda message: True, content_types=['text'])
+def handle_direct_download(message):
+    url = message.text.strip()
+    if is_valid_url(url):
+        handle_download_and_upload(message, url, upload_to_mega_flag=False)
     else:
-        # Handle the case where the message or text is None
-        await update.message.reply_text("Please send a valid video link.")
+        bot2.reply_to(message, "Please provide a valid URL to download the video.")
 
-def main() -> None:
-    # Create the application with webhook
-    application = ApplicationBuilder().token(TOKEN).build()
+# Flask app for webhook
+app = Flask(__name__)
 
-    # Register handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+@app.route('/' + API_TOKEN_2, methods=['POST'])
+def bot_webhook():
+    bot2.process_new_updates([telebot.types.Update.de_json(request.stream.read().decode("utf-8"))])
+    return "!", 200
 
-    # Ensure WEBHOOK_URL is not None before splitting
-    if WEBHOOK_URL:
-        url_path = WEBHOOK_URL.split('/')[-1]
-    else:
-        raise ValueError("Error: WEBHOOK_URL is not set or invalid")
+@app.route('/')
+def set_webhook():
+    bot2.remove_webhook()
+    bot2.set_webhook(url=KOYEB_URL + '/' + API_TOKEN_2, timeout=60)
+    return "Webhook set", 200
 
-    # Start the bot using webhook
-    application.run_webhook(
-        listen="0.0.0.0",  # Listen on all network interfaces
-        port=PORT,  # The port from environment variables
-        url_path=url_path,  # Use the path part from WEBHOOK_URL
-        webhook_url=WEBHOOK_URL  # Telegram's webhook URL
-    )
-
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=8080, debug=True)
