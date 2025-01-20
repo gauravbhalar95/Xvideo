@@ -7,15 +7,16 @@ import nest_asyncio
 # Apply the patch for nested event loops
 nest_asyncio.apply()
 
-# Your Telegram bot token and webhook URL from environment variables
+# Retrieve environment variables
 TOKEN = os.getenv('BOT_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 PORT = int(os.getenv('PORT', 8443))  # Default to 8443 if not set
 
+# Check if TOKEN and WEBHOOK_URL are set
 if not TOKEN:
-    raise ValueError("Error: BOT_TOKEN is not set")
+    raise ValueError("Error: BOT_TOKEN environment variable is not set. Please set it before running the bot.")
 if not WEBHOOK_URL:
-    raise ValueError("Error: WEBHOOK_URL is not set")
+    raise ValueError("Error: WEBHOOK_URL environment variable is not set. Please set it before running the bot.")
 
 # Path to cookies.txt
 COOKIES_FILE = "cookies.txt"
@@ -81,7 +82,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Extract the webhook path (the token itself is used as the path)
+    # Extract the webhook path
     url_path = WEBHOOK_URL.split('/')[-1]
 
     # Start the bot using webhook
