@@ -48,6 +48,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Hello! Send me a valid video URL to download the video."
     )
 
+async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(update.message.text)
+
 async def download_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
 
@@ -77,6 +80,7 @@ async def download_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 application = ApplicationBuilder().token(BOT_TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_handler))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))  # Add echo handler for testing
 
 # Flask webhook endpoint
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
@@ -98,4 +102,4 @@ if __name__ == "__main__":
     import asyncio
     loop = asyncio.get_event_loop()
     loop.run_until_complete(set_webhook())
-    app.run(host="0.0.0.0", port=8080)
+    app.run(host="0.0.0.0", port=8080, debug=True)  # Enable debug mode
