@@ -76,7 +76,7 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download
 
 # Flask webhook endpoint
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
-def webhook():
+async def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
     application.update_queue.put(update)
     return "OK", 200
@@ -85,7 +85,11 @@ def webhook():
 def home():
     return "Bot is running!", 200
 
+# Ensure the webhook is set
+async def set_webhook():
+    await application.bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
+
 if __name__ == "__main__":
     # Set the webhook
-    application.bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
-    app.run(host="0.0.0.0", port=8443)
+    set_webhook()
+    app.run(host="0.0.0.0", port=8080)
