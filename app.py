@@ -46,7 +46,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Handle pasted URLs
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Check if the message contains text
+    if not update.message or not update.message.text:
+        await update.message.reply_text("Please send a valid video URL.")
+        return
+
     url = update.message.text.strip()
+
+    # Validate if the URL starts with "http" or "https"
+    if not url.lower().startswith(("http://", "https://")):
+        await update.message.reply_text("Invalid URL! Please send a valid video URL.")
+        return
+
     await update.message.reply_text("Downloading video...")
 
     # Call the download_video function
