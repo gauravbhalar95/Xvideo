@@ -1,104 +1,83 @@
 import os
-import logging
-from yt_dlp import YoutubeDL
-from flask import Flask, request
+import yt_dlp as youtube_dl
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
-import asyncio
 
-# Enable nested asyncio
+# Apply the patch for nested event loops
 nest_asyncio.apply()
 
-# Logging setup
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Your Telegram bot token and webhook URL from environment variables
+TOKEN = os.getenv('BOT_TOKEN')
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')
+PORT = int(os.getenv('PORT', 8443))  # Default to 8443 if not set
 
-# Flask app
-app = Flask(__name__)
+if not TOKEN:
+    raise ValueError("Error: BOT_TOKEN is not set")
+if not WEBHOOK_URL:
+    raise ValueError("Error: WEBHOOK_URL is not set")
 
-# Environment variables
-BOT_TOKEN = os.getenv("BOT_TOKEN")  # Replace with your Telegram bot token
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Replace with your public webhook URL
-
-# Validate environment variables
-if not BOT_TOKEN or not WEBHOOK_URL:
-    raise ValueError("Missing BOT_TOKEN or WEBHOOK_URL")
-
-# yt-dlp download function
+# Function to download video using yt-dlp
 def download_video(url):
     ydl_opts = {
         'format': 'best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
+        'postprocessors': [{
+            'key': 'FFmpegVideoConvertor',
+        }],
+        'socket_timeout': 10,
+        'retries': 5,  # Retry on download errors
     }
 
-    os.makedirs('downloads', exist_ok=True)
+    # Create downloads directory if it doesn't exist
+    if not os.path.exists('downloads'):
+        os.makedirs('downloads')
 
     try:
-        with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            file_path = ydl.prepare_filename(info)
-            return file_path
+        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(url, download=True)
+            return os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
     except Exception as e:
-        logger.error(f"Failed to download video: {e}")
-        return None
+        return str(e)
 
-# Telegram bot handlers
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Hello! Send me a valid video URL to download the video."
-    )
+# Command /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text("Welcome! Send me a video link to download.")
 
-async def download_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Handle pasted URLs
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     url = update.message.text.strip()
+    await update.message.reply_text("Downloading video...")
 
-    # Validate URL
-    if not url.startswith(("http://", "https://")):
-        await update.message.reply_text("Please provide a valid URL!")
-        return
-
-    await update.message.reply_text("Downloading your video, please wait...")
-
-    # Download video
+    # Call the download_video function
     video_path = download_video(url)
 
-    if video_path:
-        try:
-            with open(video_path, 'rb') as video:
-                await update.message.reply_video(video=video)
-        except Exception as e:
-            logger.error(f"Failed to send video: {e}")
-            await update.message.reply_text("Failed to send the downloaded video.")
-        finally:
-            os.remove(video_path)  # Clean up after sending
+    # Check if the video was downloaded successfully
+    if os.path.exists(video_path):
+        with open(video_path, 'rb') as video:
+            await update.message.reply_video(video)
+        os.remove(video_path)  # Remove the file after sending
     else:
-        await update.message.reply_text("Failed to download the video. Please try again later.")
+        await update.message.reply_text(f"Error: {video_path}")
 
-# Setup the bot application
-application = ApplicationBuilder().token(BOT_TOKEN).build()
-application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_handler))
+def main() -> None:
+    # Create the application with webhook
+    application = ApplicationBuilder().token(TOKEN).build()
 
-# Flask webhook endpoint
-@app.route(f"/{BOT_TOKEN}", methods=["POST"])
-async def webhook():
-    json_data = request.get_json(force=True)
-    update = Update.de_json(json_data, application.bot)
-    await application.update_queue.put(update)
-    return "OK", 200
+    # Register handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-@app.route("/")
-def home():
-    return "Bot is running!", 200
+    # Extract the webhook path (the token itself is used as the path)
+    url_path = WEBHOOK_URL.split('/')[-1]
 
-# Ensure the webhook is set
-async def set_webhook():
-    await application.bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
+    # Start the bot using webhook
+    application.run_webhook(
+        listen="0.0.0.0",  # Listen on all network interfaces
+        port=PORT,  # The port from environment variables
+        url_path=url_path,  # Use the path part from WEBHOOK_URL
+        webhook_url=WEBHOOK_URL  # Telegram's webhook URL
+    )
 
-if __name__ == "__main__":
-    # Set the webhook
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(set_webhook())
-
-    # Start Flask app
-    app.run(host="0.0.0.0", port=8080, debug=True)
+if __name__ == '__main__':
+    main()
