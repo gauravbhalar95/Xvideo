@@ -5,9 +5,8 @@ from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 import nest_asyncio
-import asyncio
 
-# Enable nested asyncio to allow async functions within Flask
+# Enable nested asyncio
 nest_asyncio.apply()
 
 # Logging setup
@@ -77,9 +76,9 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download
 
 # Flask webhook endpoint
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
-def webhook():
+async def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
-    application.update_queue.put(update)
+    await application.update_queue.put(update)  # Await the put operation
     return "OK", 200
 
 @app.route("/")
@@ -88,17 +87,11 @@ def home():
 
 # Ensure the webhook is set
 async def set_webhook():
-    try:
-        await application.bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
-        logger.info("Webhook successfully set.")
-    except Exception as e:
-        logger.error(f"Failed to set webhook: {e}")
-
-# To set the webhook correctly when running the app
-def run_flask_app():
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(set_webhook())  # Ensure webhook is set before starting Flask
-    app.run(host="0.0.0.0", port=8080)
+    await application.bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
 
 if __name__ == "__main__":
-    run_flask_app()
+    # Set the webhook
+    import asyncio
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(set_webhook())
+    app.run(host="0.0.0.0", port=8080)
