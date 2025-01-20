@@ -45,14 +45,14 @@ def download_video(url):
 # Telegram bot handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Hello! Send me a valid video URL to download the video (e.g., Xnxx, Xvideos, XHamster, etc.)."
+        "Hello! Send me a valid video URL to download the video."
     )
 
 async def download_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
 
     # Validate URL
-    if not url.startswith("http"):
+    if not url.startswith(("http://", "https://")):  # Check for both http and https
         await update.message.reply_text("Please provide a valid URL!")
         return
 
@@ -62,10 +62,14 @@ async def download_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     video_path = download_video(url)
 
     if video_path:
-        # Send the video back to the user
-        with open(video_path, 'rb') as video:
-            await update.message.reply_video(video=video)
-        os.remove(video_path)  # Clean up after sending
+        try:
+            with open(video_path, 'rb') as video:
+                await update.message.reply_video(video=video)
+        except Exception as e:
+            logger.error(f"Failed to send video: {e}")
+            await update.message.reply_text("Failed to send the downloaded video.")
+        finally:
+            os.remove(video_path)  # Clean up after sending
     else:
         await update.message.reply_text("Failed to download the video. Please try again later.")
 
