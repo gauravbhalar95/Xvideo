@@ -5,6 +5,7 @@ from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 import nest_asyncio
+import asyncio
 
 # Enable nested asyncio
 nest_asyncio.apply()
@@ -48,14 +49,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Hello! Send me a valid video URL to download the video."
     )
 
-async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(update.message.text)
-
 async def download_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
 
     # Validate URL
-    if not url.startswith(("http://", "https://")):  # Check for both http and https
+    if not url.startswith(("http://", "https://")):
         await update.message.reply_text("Please provide a valid URL!")
         return
 
@@ -80,13 +78,13 @@ async def download_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 application = ApplicationBuilder().token(BOT_TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_handler))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))  # Add echo handler for testing
 
 # Flask webhook endpoint
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 async def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    await application.update_queue.put(update)  # Await the put operation
+    json_data = request.get_json(force=True)
+    update = Update.de_json(json_data, application.bot)
+    await application.update_queue.put(update)
     return "OK", 200
 
 @app.route("/")
@@ -99,7 +97,8 @@ async def set_webhook():
 
 if __name__ == "__main__":
     # Set the webhook
-    import asyncio
     loop = asyncio.get_event_loop()
     loop.run_until_complete(set_webhook())
-    app.run(host="0.0.0.0", port=8080, debug=True)  # Enable debug mode
+
+    # Start Flask app
+    app.run(host="0.0.0.0", port=8080, debug=True)
