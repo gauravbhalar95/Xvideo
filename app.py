@@ -1,5 +1,5 @@
 import os
-import yt_dlp as youtube_dl
+import youtube_dl
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
@@ -17,11 +17,12 @@ if not TOKEN:
 if not WEBHOOK_URL:
     raise ValueError("Error: WEBHOOK_URL is not set")
 
-# Function to download video using yt-dlp
+# Function to download video using youtube_dl
 def download_video(url):
     ydl_opts = {
         'format': 'best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
+        'cookiefile': cookies_file,  # Use cookie file if required for authentication
         'postprocessors': [{
             'key': 'FFmpegVideoConvertor',
         }],
@@ -46,18 +47,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Handle pasted URLs
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Check if the message contains text
-    if not update.message or not update.message.text:
-        await update.message.reply_text("Please send a valid video URL.")
-        return
-
     url = update.message.text.strip()
-
-    # Validate if the URL starts with "http" or "https"
-    if not url.lower().startswith(("http://", "https://")):
-        await update.message.reply_text("Invalid URL! Please send a valid video URL.")
-        return
-
     await update.message.reply_text("Downloading video...")
 
     # Call the download_video function
