@@ -17,12 +17,19 @@ if not TOKEN:
 if not WEBHOOK_URL:
     raise ValueError("Error: WEBHOOK_URL is not set")
 
+# Path to cookies.txt
+COOKIES_FILE = "cookies.txt"
+
+# Ensure cookies.txt exists
+if not os.path.exists(COOKIES_FILE):
+    raise ValueError(f"Error: {COOKIES_FILE} not found. Please provide the file.")
+
 # Function to download video using youtube_dl
 def download_video(url):
     ydl_opts = {
         'format': 'best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'cookiefile': cookies_file,  # Use cookie file if required for authentication
+        'cookiefile': COOKIES_FILE,  # Use the cookie file for authentication
         'postprocessors': [{
             'key': 'FFmpegVideoConvertor',
         }],
@@ -47,6 +54,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Handle pasted URLs
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Check if the message contains text
+    if not update.message or not update.message.text:
+        await update.message.reply_text("Please send a valid video URL.")
+        return
+
     url = update.message.text.strip()
     await update.message.reply_text("Downloading video...")
 
