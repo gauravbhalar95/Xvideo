@@ -13,28 +13,22 @@ nest_asyncio.apply()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Flask app setup
+# Flask app
 app = Flask(__name__)
 
 # Environment variables
-TOKEN = os.getenv('BOT_TOKEN')  # Your bot token
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Public URL for webhook
-PORT = int(os.getenv('PORT', 8443))  # Port for Flask server
-CHANNEL_ID = os.getenv('CHANNEL_ID')  # Telegram channel ID for uploads
+TOKEN = os.getenv("BOT_TOKEN")  # Telegram bot token
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Public URL (Koyeb will provide this)
+CHANNEL_ID = os.getenv("CHANNEL_ID")  # Target channel ID
 
-# Check environment variables
-if not TOKEN:
-    raise ValueError("BOT_TOKEN is required")
-if not WEBHOOK_URL:
-    raise ValueError("WEBHOOK_URL is required")
-if not CHANNEL_ID:
-    raise ValueError("CHANNEL_ID is required")
+if not TOKEN or not WEBHOOK_URL or not CHANNEL_ID:
+    raise ValueError("Missing environment variables: BOT_TOKEN, WEBHOOK_URL, or CHANNEL_ID")
 
 # Function to validate URLs
 def is_valid_url(url: str) -> bool:
     return url.startswith("http://") or url.startswith("https://")
 
-# Function to download video using youtube-dl
+# Function to download video
 def download_media(url):
     ydl_opts = {
         'format': 'best',
@@ -42,8 +36,7 @@ def download_media(url):
         'postprocessors': [{'key': 'FFmpegVideoConvertor', 'preferredformat': 'mp4'}],
     }
 
-    # Ensure the downloads directory exists
-    os.makedirs('downloads', exist_ok=True)
+    os.makedirs('downloads', exist_ok=True)  # Ensure the downloads directory exists
 
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
@@ -70,21 +63,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("Downloading your video...")
 
-    # Download video
     video_path = download_media(url)
 
     if video_path and os.path.exists(video_path):
         try:
-            # Upload video to the specified channel
+            # Upload video to the Telegram channel
             with open(video_path, 'rb') as video:
                 await context.bot.send_video(chat_id=CHANNEL_ID, video=video)
-            
             await update.message.reply_text("Video uploaded successfully!")
         except Exception as e:
             logger.error(f"Error uploading video: {e}")
             await update.message.reply_text("Failed to upload the video.")
         finally:
-            os.remove(video_path)  # Clean up the downloaded file
+            os.remove(video_path)  # Clean up
     else:
         await update.message.reply_text("Failed to download the video. Please try again.")
 
@@ -93,7 +84,7 @@ application = ApplicationBuilder().token(TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# Flask webhook setup
+# Flask webhook endpoint
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
@@ -102,13 +93,8 @@ def webhook():
 
 @app.route("/")
 def home():
-    return "Telegram Bot is running", 200
+    return "Bot is running successfully!", 200
 
-# Main entry point
 if __name__ == "__main__":
-    # Set webhook
     application.bot.set_webhook(url=f"{WEBHOOK_URL}/{TOKEN}")
-    logger.info("Webhook set successfully")
-
-    # Start Flask server
-    app.run(host="0.0.0.0", port=PORT)
+    app.run(host="0.0.0.0", port=8080)  # Use port 8080 for Koyeb
