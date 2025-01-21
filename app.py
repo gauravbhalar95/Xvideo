@@ -53,7 +53,8 @@ def download_video(url):
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
-            return os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
+            video_path = os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
+            return video_path
     except Exception as e:
         logger.error(f"Download failed for {url}: {e}")
         return None
@@ -78,9 +79,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif os.path.exists(video_path):
         with open(video_path, 'rb') as video:
             await update.message.reply_video(video)
-        os.remove(video_path)
+        os.remove(video_path) 
     else:
-        await update.message.reply_text(f"Error: {video_path}") 
+        await update.message.reply_text(f"Error: Video not found at {video_path}") 
 
 def main() -> None:
     # Create the application with webhook
