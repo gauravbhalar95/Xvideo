@@ -1,7 +1,13 @@
 import os
-import youtube_dl
+from yt_dlp import YoutubeDL
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    ContextTypes,
+)
 import nest_asyncio
 import logging
 
@@ -30,37 +36,28 @@ COOKIES_FILE = "cookies.txt"
 
 # Ensure cookies.txt exists
 if not os.path.exists(COOKIES_FILE):
-    raise ValueError(f"Error: {COOKIES_FILE} not found. Please provide the file.")
+    logger.warning(f"{COOKIES_FILE} not found. Some videos may require authentication.")
 
-# Function to download video using youtube_dl
+# Function to download video using yt-dlp
 def download_video(url):
     ydl_opts = {
         'format': 'best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'cookiefile': COOKIES_FILE,  # Use the cookie file for authentication
-        'postprocessors': [{
-            'key': 'FFmpegVideoConvertor',
-        }],
+        'cookiefile': COOKIES_FILE if os.path.exists(COOKIES_FILE) else None,
+        'postprocessors': [{'key': 'FFmpegVideoConvertor', 'preferedformat': 'mp4'}],
         'socket_timeout': 10,
-        'retries': 5,  # Retry on download errors
-        'verbose': True,  # Enable verbose output for debugging
+        'retries': 5,
+        'verbose': False,
     }
 
     # Create downloads directory if it doesn't exist
-    if not os.path.exists('downloads'):
-        os.makedirs('downloads')
+    os.makedirs('downloads', exist_ok=True)
 
     try:
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        with YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
-            
-            # Validate the extracted metadata
-            title = info_dict.get('title')
-            ext = info_dict.get('ext')
-            if not title or not ext:
-                logger.error("Missing 'title' or 'ext' in video metadata.")
-                return None
-            
+            title = info_dict.get('title', 'video')
+            ext = info_dict.get('ext', 'mp4')
             video_path = os.path.join('downloads', f"{title}.{ext}")
             return video_path
     except Exception as e:
@@ -83,14 +80,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     video_path = download_video(url)
 
     if video_path is None:
-        await update.message.reply_text("Error: Video download failed.")
+        await update.message.reply_text("Error: Video download failed. Ensure the URL is correct.")
     elif os.path.exists(video_path):
         with open(video_path, 'rb') as video:
             await update.message.reply_video(video)
-        os.remove(video_path) 
+        os.remove(video_path)
     else:
-        await update.message.reply_text(f"Error: Video not found at {video_path}") 
+        await update.message.reply_text(f"Error: Video not found at {video_path}")
 
+# Main function
 def main() -> None:
     # Create the application with webhook
     application = ApplicationBuilder().token(TOKEN).build()
