@@ -3,6 +3,13 @@ import youtube_dl
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import nest_asyncio
+import logging
+
+# Enable logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 # Apply the patch for nested event loops
 nest_asyncio.apply()
@@ -36,6 +43,7 @@ def download_video(url):
         }],
         'socket_timeout': 10,
         'retries': 5,  # Retry on download errors
+        'verbose': True,  # Enable verbose output for debugging
     }
 
     # Create downloads directory if it doesn't exist
@@ -47,7 +55,8 @@ def download_video(url):
             info_dict = ydl.extract_info(url, download=True)
             return os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
     except Exception as e:
-        return None  # Return None on any download error
+        logger.error(f"Download failed for {url}: {e}")
+        return None
 
 # Command /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
