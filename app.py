@@ -53,7 +53,15 @@ def download_video(url):
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
-            video_path = os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
+            
+            # Validate the extracted metadata
+            title = info_dict.get('title')
+            ext = info_dict.get('ext')
+            if not title or not ext:
+                logger.error("Missing 'title' or 'ext' in video metadata.")
+                return None
+            
+            video_path = os.path.join('downloads', f"{title}.{ext}")
             return video_path
     except Exception as e:
         logger.error(f"Download failed for {url}: {e}")
