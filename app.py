@@ -47,7 +47,7 @@ def download_video(url):
             info_dict = ydl.extract_info(url, download=True)
             return os.path.join('downloads', f"{info_dict['title']}.{info_dict['ext']}")
     except Exception as e:
-        return str(e)
+        return None  # Return None on any download error
 
 # Command /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -55,7 +55,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Handle pasted URLs
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Check if the message contains text
     if not update.message or not update.message.text:
         await update.message.reply_text("Please send a valid video URL.")
         return
@@ -63,16 +62,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     url = update.message.text.strip()
     await update.message.reply_text("Downloading video...")
 
-    # Call the download_video function
     video_path = download_video(url)
 
-    # Check if the video was downloaded successfully
-    if os.path.exists(video_path):
+    if video_path is None:
+        await update.message.reply_text("Error: Video download failed.")
+    elif os.path.exists(video_path):
         with open(video_path, 'rb') as video:
             await update.message.reply_video(video)
-        os.remove(video_path)  # Remove the file after sending
+        os.remove(video_path)
     else:
-        await update.message.reply_text(f"Error: {video_path}")
+        await update.message.reply_text(f"Error: {video_path}") 
 
 def main() -> None:
     # Create the application with webhook
