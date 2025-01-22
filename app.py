@@ -1,112 +1,71 @@
 import os
+from flask import Flask, request
+from telebot import TeleBot
 from yt_dlp import YoutubeDL
-from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    ContextTypes,
-)
-import nest_asyncio
-import logging
+from dotenv import load_dotenv
 
-# Enable logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+# Load environment variables
+load_dotenv()
 
-# Apply the patch for nested event loops
-nest_asyncio.apply()
+# Environment variables
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+PORT = int(os.getenv("PORT", 8443))  # Default to 8443 if PORT is not set
 
-# Retrieve environment variables
-TOKEN = os.getenv('BOT_TOKEN')
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-PORT = int(os.getenv('PORT', 8443))  # Default to 8443 if not set
+bot = TeleBot(BOT_TOKEN)
+app = Flask(__name__)
 
-# Check if TOKEN and WEBHOOK_URL are set
-if not TOKEN:
-    raise ValueError("Error: BOT_TOKEN environment variable is not set. Please set it before running the bot.")
-if not WEBHOOK_URL:
-    raise ValueError("Error: WEBHOOK_URL environment variable is not set. Please set it before running the bot.")
+# Function to download Instagram media
+def download_instagram_media(url, chat_id):
+    output_path = f"downloads/{chat_id}"  # Save per user
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
 
-# Path to cookies.txt
-COOKIES_FILE = "cookies.txt"
-
-# Ensure cookies.txt exists
-if not os.path.exists(COOKIES_FILE):
-    logger.warning(f"{COOKIES_FILE} not found. Some videos may require authentication.")
-
-# Function to download video using yt-dlp
-def download_video(url):
     ydl_opts = {
-        'format': 'best',
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'cookiefile': COOKIES_FILE if os.path.exists(COOKIES_FILE) else None,
-        'postprocessors': [{'key': 'FFmpegVideoConvertor', 'preferedformat': 'mp4'}],
-        'socket_timeout': 10,
-        'retries': 5,
-        'verbose': False,
+        "outtmpl": f"{output_path}/%(title)s.%(ext)s",
+        "format": "best",
+        "quiet": False,
+        "cookiefile": "instagram_cookies.txt",  # Path to cookies file
     }
-
-    # Create downloads directory if it doesn't exist
-    os.makedirs('downloads', exist_ok=True)
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
-            title = info_dict.get('title', 'video')
-            ext = info_dict.get('ext', 'mp4')
-            video_path = os.path.join('downloads', f"{title}.{ext}")
-            return video_path
+            file_path = ydl.prepare_filename(info_dict)
+        return file_path
     except Exception as e:
-        logger.error(f"Download failed for {url}: {e}")
-        return None
+        return str(e)
 
-# Command /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Welcome! Send me a video link to download.")
+# Telegram bot handlers
+@bot.message_handler(commands=["start"])
+def send_welcome(message):
+    bot.reply_to(message, "Welcome! Send me an Instagram story or post URL to download it.")
 
-# Handle pasted URLs
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not update.message or not update.message.text:
-        await update.message.reply_text("Please send a valid video URL.")
-        return
-
-    url = update.message.text.strip()
-    await update.message.reply_text("Downloading video...")
-
-    video_path = download_video(url)
-
-    if video_path is None:
-        await update.message.reply_text("Error: Video download failed. Ensure the URL is correct.")
-    elif os.path.exists(video_path):
-        with open(video_path, 'rb') as video:
-            await update.message.reply_video(video)
-        os.remove(video_path)
+@bot.message_handler(func=lambda message: True)
+def handle_message(message):
+    url = message.text.strip()
+    bot.send_message(message.chat.id, "Downloading media, please wait...")
+    file_path = download_instagram_media(url, message.chat.id)
+    if os.path.isfile(file_path):
+        with open(file_path, "rb") as media:
+            bot.send_document(message.chat.id, media)
+        os.remove(file_path)  # Clean up after sending
     else:
-        await update.message.reply_text(f"Error: Video not found at {video_path}")
+        bot.send_message(message.chat.id, f"Error: {file_path}")
+
+# Flask route for webhook
+@app.route(f"/{BOT_TOKEN}", methods=["POST"])
+def receive_update():
+    json_update = request.get_data().decode("utf-8")
+    update = telebot.types.Update.de_json(json_update)
+    bot.process_new_updates([update])
+    return "OK", 200
 
 # Main function
-def main() -> None:
-    # Create the application with webhook
-    application = ApplicationBuilder().token(TOKEN).build()
+if __name__ == "__main__":
+    # Set webhook
+    bot.remove_webhook()
+    bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
 
-    # Register handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Extract the webhook path
-    url_path = WEBHOOK_URL.split('/')[-1]
-
-    # Start the bot using webhook
-    application.run_webhook(
-        listen="0.0.0.0",  # Listen on all network interfaces
-        port=PORT,  # The port from environment variables
-        url_path=url_path,  # Use the path part from WEBHOOK_URL
-        webhook_url=WEBHOOK_URL  # Telegram's webhook URL
-    )
-
-if __name__ == '__main__':
-    main()
+    # Run Flask app
+    app.run(host="0.0.0.0", port=PORT)
