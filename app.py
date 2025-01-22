@@ -25,7 +25,7 @@ def download_instagram_media(url, chat_id):
         "outtmpl": f"{output_path}/%(title)s.%(ext)s",
         "format": "best",
         "quiet": False,
-        "cookiefile": "instagram_cookies.txt",  # Path to cookies file
+        "cookiefile": "cookies.txt",  # Path to cookies file
     }
 
     try:
