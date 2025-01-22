@@ -1,6 +1,6 @@
 import os
 from flask import Flask, request
-from telebot import TeleBot
+from telebot import TeleBot, types
 from yt_dlp import YoutubeDL
 from dotenv import load_dotenv
 
@@ -57,7 +57,7 @@ def handle_message(message):
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def receive_update():
     json_update = request.get_data().decode("utf-8")
-    update = telebot.types.Update.de_json(json_update)
+    update = types.Update.de_json(json_update)
     bot.process_new_updates([update])
     return "OK", 200
 
