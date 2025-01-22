@@ -1,6 +1,6 @@
 import os
 from flask import Flask, request
-from telebot import TeleBot, types
+from telebot import TeleBot
 from yt_dlp import YoutubeDL
 from dotenv import load_dotenv
 
@@ -11,6 +11,8 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 8443))  # Default to 8443 if PORT is not set
+INSTAGRAM_USERNAME = os.getenv("INSTAGRAM_USERNAME")
+INSTAGRAM_PASSWORD = os.getenv("INSTAGRAM_PASSWORD")
 
 bot = TeleBot(BOT_TOKEN)
 app = Flask(__name__)
@@ -25,7 +27,9 @@ def download_instagram_media(url, chat_id):
         "outtmpl": f"{output_path}/%(title)s.%(ext)s",
         "format": "best",
         "quiet": False,
-        "cookiefile": "cookies.txt",  # Path to cookies file
+        "cookiefile": "cookies.txt",  # Ensure this file is in the same directory
+        "username": INSTAGRAM_USERNAME,  # Set in .env or hardcode
+        "password": INSTAGRAM_PASSWORD,  # Set in .env or hardcode
     }
 
     try:
@@ -34,7 +38,8 @@ def download_instagram_media(url, chat_id):
             file_path = ydl.prepare_filename(info_dict)
         return file_path
     except Exception as e:
-        return str(e)
+        print(f"Error downloading Instagram media: {e}")  # Log the error
+        return f"Error: {str(e)}"
 
 # Telegram bot handlers
 @bot.message_handler(commands=["start"])
@@ -57,7 +62,7 @@ def handle_message(message):
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def receive_update():
     json_update = request.get_data().decode("utf-8")
-    update = types.Update.de_json(json_update)
+    update = telebot.types.Update.de_json(json_update)
     bot.process_new_updates([update])
     return "OK", 200
 
