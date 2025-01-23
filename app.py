@@ -1,8 +1,8 @@
 import os
 from flask import Flask, request
-from telebot import TeleBot, types  # Importing types for update handling
-from yt_dlp import YoutubeDL
+from telebot import TeleBot, types
 from dotenv import load_dotenv
+from instaloader import Instaloader, Profile, Post
 
 # Load environment variables
 load_dotenv()
@@ -10,42 +10,42 @@ load_dotenv()
 # Environment variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-PORT = int(os.getenv("PORT", 8443))  # Default to 8443 if PORT is not set
+PORT = int(os.getenv("PORT", 8443))  # Default port
 INSTAGRAM_USERNAME = os.getenv("INSTAGRAM_USERNAME")
 INSTAGRAM_PASSWORD = os.getenv("INSTAGRAM_PASSWORD")
 
+# Initialize bot and Flask app
 bot = TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
+# Initialize Instaloader
+loader = Instaloader()
+
+# Login to Instagram
+try:
+    loader.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+except Exception as e:
+    print(f"Error logging into Instagram: {e}")
+
 # Function to download Instagram media
 def download_instagram_media(url, chat_id):
-    output_path = f"downloads/{chat_id}"  # Save files per user
+    output_path = f"downloads/{chat_id}"  # Save per user
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    ydl_opts = {
-        "outtmpl": f"{output_path}/%(title)s.%(ext)s",
-        "format": "best",
-        "quiet": False,
-        "verbose": True,  # Enable verbose logging
-        "cookiefile": "cookies.txt",  # Ensure this file is in the same directory
-        "username": INSTAGRAM_USERNAME,  # Instagram username from .env
-        "password": INSTAGRAM_PASSWORD,  # Instagram password from .env
-    }
-
     try:
-        with YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(url, download=True)
-            file_path = ydl.prepare_filename(info_dict)
-        return file_path
+        post = Post.from_shortcode(loader.context, url.split("/")[-2])
+        filename = os.path.join(output_path, f"{post.date_utc.strftime('%Y%m%d_%H%M%S')}.jpg")
+        loader.download_post(post, target=output_path)
+        return filename
     except Exception as e:
-        print(f"Error downloading Instagram media: {e}")  # Log the error
+        print(f"Error downloading Instagram media: {e}")
         return f"Error: {str(e)}"
 
 # Telegram bot handlers
 @bot.message_handler(commands=["start"])
 def send_welcome(message):
-    bot.reply_to(message, "Welcome! Send me an Instagram post or story URL to download it.")
+    bot.reply_to(message, "Welcome! Send me an Instagram post URL to download it.")
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
@@ -63,7 +63,7 @@ def handle_message(message):
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def receive_update():
     json_update = request.get_data().decode("utf-8")
-    update = types.Update.de_json(json_update)  # Correctly parse the update
+    update = types.Update.de_json(json_update)
     bot.process_new_updates([update])
     return "OK", 200
 
