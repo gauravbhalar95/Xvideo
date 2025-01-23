@@ -1,6 +1,6 @@
 import os
 from flask import Flask, request
-from telebot import TeleBot, types  # Import types directly from telebot
+from telebot import TeleBot, types  # Importing types for update handling
 from yt_dlp import YoutubeDL
 from dotenv import load_dotenv
 
@@ -19,7 +19,7 @@ app = Flask(__name__)
 
 # Function to download Instagram media
 def download_instagram_media(url, chat_id):
-    output_path = f"downloads/{chat_id}"  # Save per user
+    output_path = f"downloads/{chat_id}"  # Save files per user
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
@@ -27,9 +27,10 @@ def download_instagram_media(url, chat_id):
         "outtmpl": f"{output_path}/%(title)s.%(ext)s",
         "format": "best",
         "quiet": False,
+        "verbose": True,  # Enable verbose logging
         "cookiefile": "cookies.txt",  # Ensure this file is in the same directory
-        "username": INSTAGRAM_USERNAME,  # Set in .env or hardcode
-        "password": INSTAGRAM_PASSWORD,  # Set in .env or hardcode
+        "username": INSTAGRAM_USERNAME,  # Instagram username from .env
+        "password": INSTAGRAM_PASSWORD,  # Instagram password from .env
     }
 
     try:
@@ -44,7 +45,7 @@ def download_instagram_media(url, chat_id):
 # Telegram bot handlers
 @bot.message_handler(commands=["start"])
 def send_welcome(message):
-    bot.reply_to(message, "Welcome! Send me an Instagram story or post URL to download it.")
+    bot.reply_to(message, "Welcome! Send me an Instagram post or story URL to download it.")
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
@@ -62,7 +63,7 @@ def handle_message(message):
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def receive_update():
     json_update = request.get_data().decode("utf-8")
-    update = types.Update.de_json(json_update)  # Correctly use types.Update
+    update = types.Update.de_json(json_update)  # Correctly parse the update
     bot.process_new_updates([update])
     return "OK", 200
 
