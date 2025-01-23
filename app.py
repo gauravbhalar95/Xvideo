@@ -2,7 +2,7 @@ import os
 from flask import Flask, request
 from telebot import TeleBot, types
 from dotenv import load_dotenv
-from instaloader import Instaloader, Profile, Post
+from instaloader import Instaloader, Post
 
 # Load environment variables
 load_dotenv()
@@ -22,10 +22,24 @@ app = Flask(__name__)
 loader = Instaloader()
 
 # Login to Instagram
-try:
-    loader.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
-except Exception as e:
-    print(f"Error logging into Instagram: {e}")
+def instagram_login():
+    try:
+        # Try loading session from cookies
+        loader.load_session_from_file(INSTAGRAM_USERNAME, "cookies.txt")
+        print("Logged in using cookies.")
+    except Exception as cookie_error:
+        print(f"Cookies login failed: {cookie_error}")
+        try:
+            # Fall back to username/password login
+            loader.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+            print("Logged in using username and password.")
+            # Save the session for future use
+            loader.save_session_to_file("cookies.txt")
+        except Exception as login_error:
+            print(f"Username/password login failed: {login_error}")
+
+# Perform login
+instagram_login()
 
 # Function to download Instagram media
 def download_instagram_media(url, chat_id):
@@ -34,10 +48,11 @@ def download_instagram_media(url, chat_id):
         os.makedirs(output_path)
 
     try:
-        post = Post.from_shortcode(loader.context, url.split("/")[-2])
-        filename = os.path.join(output_path, f"{post.date_utc.strftime('%Y%m%d_%H%M%S')}.jpg")
+        # Extract the shortcode from the URL
+        shortcode = url.split("/")[-2]
+        post = Post.from_shortcode(loader.context, shortcode)
         loader.download_post(post, target=output_path)
-        return filename
+        return f"{output_path}/{shortcode}"
     except Exception as e:
         print(f"Error downloading Instagram media: {e}")
         return f"Error: {str(e)}"
@@ -52,10 +67,16 @@ def handle_message(message):
     url = message.text.strip()
     bot.send_message(message.chat.id, "Downloading media, please wait...")
     file_path = download_instagram_media(url, message.chat.id)
-    if os.path.isfile(file_path):
-        with open(file_path, "rb") as media:
-            bot.send_document(message.chat.id, media)
-        os.remove(file_path)  # Clean up after sending
+    if os.path.isdir(file_path):  # Check if it's a directory
+        for root, dirs, files in os.walk(file_path):
+            for file in files:
+                with open(os.path.join(root, file), "rb") as media:
+                    bot.send_document(message.chat.id, media)
+        # Clean up after sending
+        for root, dirs, files in os.walk(file_path):
+            for file in files:
+                os.remove(os.path.join(root, file))
+        os.rmdir(file_path)
     else:
         bot.send_message(message.chat.id, f"Error: {file_path}")
 
