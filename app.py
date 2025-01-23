@@ -62,7 +62,7 @@ def handle_message(message):
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def receive_update():
     json_update = request.get_data().decode("utf-8")
-    update = Telebot.types.Update.de_json(json_update)
+    update = TeleBot.types.Update.de_json(json_update)
     bot.process_new_updates([update])
     return "OK", 200
 
