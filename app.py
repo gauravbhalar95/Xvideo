@@ -1,98 +1,106 @@
 import os
+import logging
 from flask import Flask, request
-from telebot import TeleBot, types
-from dotenv import load_dotenv
-from instaloader import Instaloader, Post
-
-# Load environment variables
-load_dotenv()
+import telebot
+from mega import Mega
+import time
 
 # Environment variables
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-PORT = int(os.getenv("PORT", 8443))  # Default port
-INSTAGRAM_USERNAME = os.getenv("INSTAGRAM_USERNAME")
-INSTAGRAM_PASSWORD = os.getenv("INSTAGRAM_PASSWORD")
+API_TOKEN = os.getenv('BOT_TOKEN')  # Telegram bot token
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Webhook URL
+PORT = int(os.getenv('PORT', 8080))  # Default port is 8080
 
-# Initialize bot and Flask app
-bot = TeleBot(BOT_TOKEN)
+# Initialize the bot
+bot = telebot.TeleBot(API_TOKEN, parse_mode='HTML')
+
+# Logging configuration
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Mega client
+mega_client = None
+
+# Flask app for webhook
 app = Flask(__name__)
 
-# Initialize Instaloader
-loader = Instaloader()
+# Store login status
+user_credentials = {}
 
-# Login to Instagram
-def instagram_login():
+# Command: /meganz <username> <password>
+@bot.message_handler(commands=['meganz'])
+def login_mega(message):
+    global mega_client
     try:
-        # Try loading session from cookies
-        loader.load_session_from_file(INSTAGRAM_USERNAME, "cookies.txt")
-        print("Logged in using cookies.")
-    except Exception as cookie_error:
-        print(f"Cookies login failed: {cookie_error}")
-        try:
-            # Fall back to username/password login
-            loader.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
-            print("Logged in using username and password.")
-            # Save the session for future use
-            loader.save_session_to_file("cookies.txt")
-        except Exception as login_error:
-            print(f"Username/password login failed: {login_error}")
+        # Parse credentials
+        args = message.text.split()
+        if len(args) != 3:
+            bot.reply_to(message, "Usage: /meganz <username> <password>")
+            return
+        
+        username, password = args[1], args[2]
 
-# Perform login
-instagram_login()
+        # Initialize Mega client and login
+        mega = Mega()
+        mega_client = mega.login(username, password)
+        
+        # Save credentials for future sessions
+        user_credentials['username'] = username
+        user_credentials['password'] = password
 
-# Function to download Instagram media
-def download_instagram_media(url, chat_id):
-    output_path = f"downloads/{chat_id}"  # Save per user
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-
-    try:
-        # Extract the shortcode from the URL
-        shortcode = url.split("/")[-2]
-        post = Post.from_shortcode(loader.context, shortcode)
-        loader.download_post(post, target=output_path)
-        return f"{output_path}/{shortcode}"
+        bot.reply_to(message, "✅ Logged into Mega.nz successfully!")
     except Exception as e:
-        print(f"Error downloading Instagram media: {e}")
-        return f"Error: {str(e)}"
+        logger.error(f"Error logging into Mega.nz: {e}")
+        bot.reply_to(message, f"❌ Failed to log in: {e}")
 
-# Telegram bot handlers
-@bot.message_handler(commands=["start"])
-def send_welcome(message):
-    bot.reply_to(message, "Welcome! Send me an Instagram post URL to download it.")
+# Auto-upload files to Mega.nz
+@bot.message_handler(content_types=['document', 'photo', 'video'])
+def auto_upload_to_mega(message):
+    global mega_client
 
-@bot.message_handler(func=lambda message: True)
-def handle_message(message):
-    url = message.text.strip()
-    bot.send_message(message.chat.id, "Downloading media, please wait...")
-    file_path = download_instagram_media(url, message.chat.id)
-    if os.path.isdir(file_path):  # Check if it's a directory
-        for root, dirs, files in os.walk(file_path):
-            for file in files:
-                with open(os.path.join(root, file), "rb") as media:
-                    bot.send_document(message.chat.id, media)
-        # Clean up after sending
-        for root, dirs, files in os.walk(file_path):
-            for file in files:
-                os.remove(os.path.join(root, file))
-        os.rmdir(file_path)
-    else:
-        bot.send_message(message.chat.id, f"Error: {file_path}")
+    if not mega_client:
+        bot.reply_to(message, "❌ Please log in first using /meganz <username> <password>.")
+        return
 
-# Flask route for webhook
-@app.route(f"/{BOT_TOKEN}", methods=["POST"])
-def receive_update():
-    json_update = request.get_data().decode("utf-8")
-    update = types.Update.de_json(json_update)
-    bot.process_new_updates([update])
+    try:
+        # Get the file info
+        file_id = message.document.file_id if message.content_type == 'document' else \
+                  message.photo[-1].file_id if message.content_type == 'photo' else \
+                  message.video.file_id
+
+        file_info = bot.get_file(file_id)
+        file_path = file_info.file_path
+        file_name = file_path.split('/')[-1]
+
+        # Download the file
+        downloaded_file = bot.download_file(file_path)
+        with open(file_name, 'wb') as f:
+            f.write(downloaded_file)
+
+        bot.reply_to(message, "Uploading to Mega.nz, please wait...")
+
+        # Upload to Mega.nz
+        uploaded_file = mega_client.upload(file_name)
+        public_url = mega_client.get_upload_link(uploaded_file)
+        
+        bot.reply_to(message, f"✅ File uploaded successfully!\n📎 Public link: {public_url}")
+        
+        # Clean up local file
+        os.remove(file_name)
+    except Exception as e:
+        logger.error(f"Error uploading to Mega.nz: {e}")
+        bot.reply_to(message, f"❌ Failed to upload: {e}")
+
+# Flask routes
+@app.route('/' + API_TOKEN, methods=['POST'])
+def webhook():
+    bot.process_new_updates([telebot.types.Update.de_json(request.stream.read().decode("utf-8"))])
     return "OK", 200
 
-# Main function
-if __name__ == "__main__":
-    # Set webhook
+@app.route('/')
+def set_webhook():
     bot.remove_webhook()
-    bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
+    bot.set_webhook(url=WEBHOOK_URL + '/' + API_TOKEN, timeout=60)
+    return "Webhook set", 200
 
-    # Run Flask app
-    app.run(host="0.0.0.0", port=PORT)
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=PORT)
